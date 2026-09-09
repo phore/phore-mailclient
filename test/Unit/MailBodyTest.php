@@ -17,7 +17,7 @@ final class MailBodyTest extends TestCase
         self::assertSame('<p>ignored</p>', $body->asHtml());
     }
 
-    public function testHtmlOnlyBodyGetsMarkdownAndTextFallbacks(): void
+    public function testHtmlOnlyBodyUsesPhoreMarkdownForMarkdownAndTextFallbacks(): void
     {
         $body = new MailBody(html: '<h1>Hello</h1><p>A <strong>bold</strong> text.</p><script>bad()</script>');
         self::assertSame("# Hello\n\nA **bold** text.", $body->asMarkdown());

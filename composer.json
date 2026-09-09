@@ -9,6 +9,12 @@
       "email": "leuffen@continue.de"
     }
   ],
+  "repositories": [
+    {
+      "type": "vcs",
+      "url": "https://github.com/phore/phore-markdown"
+    }
+  ],
   "autoload": {
     "psr-4": {
       "Phore\\MailClient\\": "src/"
@@ -21,14 +27,13 @@
   },
   "require": {
     "php": ">=8.5",
-    "ext-dom": "*",
     "ext-fileinfo": "*",
     "ext-iconv": "*",
     "ext-json": "*",
-    "ext-libxml": "*",
     "ext-mbstring": "*",
     "ext-openssl": "*",
     "ext-zip": "*",
+    "phore/markdown": "dev-feat/markdown-converters",
     "webklex/php-imap": "^6.2"
   },
   "require-dev": {

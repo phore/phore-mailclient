@@ -4,16 +4,17 @@
 |---|---|---|
 | 2026-09-04 | dermatthes | §§ 1–12: Proposal angelegt |
 | 2026-09-09 | dermatthes | §§ 1, 3.3, 5, 7, 11.1, 12.2: Roh-HTML-Zugriff, internen Markdown-Fallback und Draft-Demos ergänzt |
+| 2026-09-09 | dermatthes | §§ 3.3, 5 und 12.2: Markdown-Konvertierung in `phore/markdown` ausgelagert |
 
 **Status:** Offen  
 **Vorgeschlagener Projektname:** Phore Mail Client  
-**Vorgeschlagenes Repository:** `phore/phore-mailclient`  [geändert]
+**Vorgeschlagenes Repository:** `phore/phore-mailclient`  
 **Vorgeschlagenes Composer-Paket:** `phore/mail-client`  
 **Technische Basis:** PHP 8.5+, Ubuntu 26.04 LTS
 
 ## § 1 Kurzfassung
 
-Phore Mail Client soll die Kernfunktionen eines normalen E-Mail-Clients als kleine, typsichere PHP-API bereitstellen: Verbindung prüfen, neue E-Mails inkrementell abrufen, E-Mails suchen und vollständig parsen, Attachments lesen, aus einer Nachricht eine Antwort oder Weiterleitung erzeugen und das Ergebnis als Draft speichern. Der kanonische Inhalt einer gelesenen Nachricht ist Markdown beziehungsweise Text; die ursprüngliche HTML-Alternative darf zusätzlich über einen ausdrücklich als unvertrauenswürdig gekennzeichneten Zugriff bereitgestellt werden und wird weder gerendert noch automatisch nachgeladen. Antworten und Weiterleitungen bleiben über standardisierte Mail-Header und eine interne Relation mit ihrer Ursprungsnachricht verbunden. [geändert]
+Phore Mail Client soll die Kernfunktionen eines normalen E-Mail-Clients als kleine, typsichere PHP-API bereitstellen: Verbindung prüfen, neue E-Mails inkrementell abrufen, E-Mails suchen und vollständig parsen, Attachments lesen, aus einer Nachricht eine Antwort oder Weiterleitung erzeugen und das Ergebnis als Draft speichern. Der kanonische Inhalt einer gelesenen Nachricht ist Markdown beziehungsweise Text; die ursprüngliche HTML-Alternative darf zusätzlich über einen ausdrücklich als unvertrauenswürdig gekennzeichneten Zugriff bereitgestellt werden und wird weder gerendert noch automatisch nachgeladen. Antworten und Weiterleitungen bleiben über standardisierte Mail-Header und eine interne Relation mit ihrer Ursprungsnachricht verbunden.
 
 Empfohlen wird ein eigenständiges Paket statt einer Erweiterung von `phore/mail`. Das bestehende Paket ist ein schlanker PHPMailer-/Template-Wrapper für ausgehende SMTP-Mail und verlangt nur PHP >7; der neue Client hat dagegen ein anderes Domänenmodell, benötigt Abruf, Synchronisation, MIME-Parsing, Ordner- und Draft-Semantik und soll zu PHP 8.5 sowie dem Phore AI Harness passen. `phore/mail` kann später als optionaler Versandbaustein integriert werden, bleibt im MVP aber unverändert.
 
@@ -55,7 +56,7 @@ Das bestehende [phore/phore-mail](https://github.com/phore/phore-mail) ist ein e
 | [PECL imap](https://pecl.php.net/package/imap) | Unterstützt IMAP, POP3 und lokale Mailboxen; aktuelle stabile Version 1.0.3 stammt vom 15.10.2024. | Nur optionaler Adapter/Fallback, keine Pflichtabhängigkeit. |
 | [ZBateson MailMimeParser](https://github.com/zbateson/mail-mime-parser) | Reiner PHP-MIME-Parser, Streaming-orientiert, PHP >=8.1; Release [4.0.3](https://github.com/zbateson/mail-mime-parser/releases/tag/4.0.3) vom 30.07.2026. | Bevorzugter Parser für rohe RFC-822-Nachrichten und Attachments. |
 | [Symfony Mime](https://github.com/symfony/mime) | Gepflegte Erzeugung von RFC-konformen MIME-Nachrichten und Attachments; Release [8.1.6](https://github.com/symfony/mime/releases/tag/v8.1.6) vom 30.08.2026. | Bevorzugter MIME-Builder für Drafts. |
-| Interner Mini-Konverter | Kleine DOM-basierte Umwandlung häufiger HTML-Strukturen mit sicherem Text-Fallback. | Ohne zusätzliche Laufzeitabhängigkeit verwenden; aktive und externe Inhalte entfernen. [geändert] |
+| [`phore/markdown`](https://github.com/phore/phore-markdown) | Kleine, eigenständige Konvertierung häufiger HTML-Strukturen nach Markdown und eines konservativen Markdown-Subsets nach HTML, jeweils mit sicherem Text-Fallback. | Als gekapselte Laufzeitabhängigkeit verwenden; aktive und externe Inhalte entfernen und Raw HTML nicht durchreichen. [geändert] |
 | [Laminas Mail](https://github.com/laminas/laminas-mail) | Besitzt IMAP- und POP3-Protokollklassen, ist laut eigenem Composer-Metadatum aber aufgegeben und durch Symfony Mailer ersetzt; PHP-Vertrag endet bei 8.3. | Nicht verwenden. |
 
 Der IMAP-Transport wird nicht selbst neu implementiert, solange Webklex die Interoperabilitätstests besteht. Für POP3 ist dagegen ein kleiner eigener `StreamPop3Connector` vertretbar: TLS-Socket, CAPA, AUTH beziehungsweise USER/PASS, UIDL, LIST, TOP/RETR und QUIT sind überschaubar und vermeiden die strategische Abhängigkeit von der ausgelagerten C-Erweiterung. Der Konnektor bleibt strikt read-only; DELE wird im MVP nicht exponiert.
@@ -106,7 +107,7 @@ Das Repository enthält einen unabhängigen Kern und optionale Integrationen:
 | `Pop3Connector` | POP3-CAPA/UIDL/LIST/TOP/RETR über TLS; keine Schreiboperationen. |
 | `MailReference` | Stabile Remote-Identität. IMAP: Konto, Mailbox, UIDVALIDITY, UID; POP3: Konto und UIDL; zusätzlich Message-ID, sofern vorhanden. |
 | `MailMessage` | Geparste, unveränderliche Nachricht mit Envelope, Headern, Body, Flags, Attachment-Metadaten und Workflow-Status; bietet gebundene `reply()`, `replyAll()` und `forward()`-Einstiege. |
-| `MailBody` | Explizite Zugriffe auf `text`, unvertrauenswürdiges `html` und kanonisches `markdown`, optional heuristisch getrenntes `authoredMarkdown`, `quotedMarkdown` und Parse-Warnungen. [geändert] |
+| `MailBody` | Explizite Zugriffe auf `text`, unvertrauenswürdiges `html` und kanonisches `markdown`; HTML-/Markdown-Konvertierung erfolgt über `phore/markdown`, optional ergänzt um heuristisch getrenntes `authoredMarkdown`, `quotedMarkdown` und Parse-Warnungen. [geändert] |
 | `MailAttachment` | Metadaten, Hash und lazy `openStream()`; Binärdaten werden nicht automatisch in Speicher oder AI-Kontext geladen. |
 | `MailDraft` | Veränderbarer Builder oder immutable Wither für Absender, Empfänger, Betreff, Markdown, Attachments und `DraftRelation`; `save()` gibt `SavedDraft` zurück. |
 | `DraftRelation` | Typ `reply`, `reply_all` oder `forward`, Ursprung, neue Message-ID, Remote-Draft-Referenz und Status. |
@@ -167,7 +168,7 @@ Jede Operation prüft vor Ausführung die Fähigkeiten des Kontos. Fehler unters
 
 Der Parser verarbeitet RFC-822/MIME als Stream, normalisiert Header und Text auf UTF-8 und bevorzugt eine brauchbare `text/plain`-Alternative. Existiert nur HTML oder ist der Plaintext offensichtlich leer beziehungsweise unbrauchbar, wird HTML ohne aktive Inhalte in Markdown umgewandelt. `blockquote` wird als Markdown-Quote mit `>` erhalten; bei Plaintext bleiben vorhandene Quote-Präfixe erhalten. Das vollständige Ergebnis steht in `MailBody::markdown`; eine vorsichtige Heuristik darf zusätzlich neu verfassten und zitierten Anteil trennen, darf den vollständigen Body aber niemals verwerfen.
 
-Die ursprüngliche HTML-Alternative darf über `MailBody::asHtml()` ausdrücklich als unvertrauenswürdige Quelle gelesen werden, wird jedoch nicht an das AI Harness übergeben. Skripte, Styles, Formulare, Tracking-Pixel, externe Bilder und eingebettete Remote-Ressourcen werden bei der Markdown- und Textableitung ignoriert und niemals automatisch geladen. Links dürfen als Text/Markdown erhalten bleiben, lösen aber keinen Netzwerkzugriff aus. [geändert]
+Die ursprüngliche HTML-Alternative darf über `MailBody::asHtml()` ausdrücklich als unvertrauenswürdige Quelle gelesen werden, wird jedoch nicht an das AI Harness übergeben. Skripte, Styles, Formulare, Tracking-Pixel, externe Bilder und eingebettete Remote-Ressourcen werden bei der Markdown- und Textableitung ignoriert und niemals automatisch geladen. Links dürfen als Text/Markdown erhalten bleiben, lösen aber keinen Netzwerkzugriff aus.
 
 Beim Schreiben ist Markdown die einzige Anwendungs-Eingabe. Der Draft-Builder erzeugt daraus eine `text/plain`-Alternative und optional ein konservativ gerendertes, sanitisiertes HTML. Raw HTML in Markdown ist standardmäßig deaktiviert. Der MIME-Builder erzeugt eine neue Message-ID, korrekte Zeichensätze und sichere Header-Faltung. Antworten übernehmen `In-Reply-To` und bauen `References` nach RFC 5322 fort; Weiterleitungen referenzieren die Quelle intern und zitieren deren kanonischen Markdown-Inhalt beziehungsweise hängen die Originalnachricht optional als `message/rfc822` an.
 
@@ -231,7 +232,7 @@ Für interaktive Agenten stellt `MailToolset` eng begrenzte `CallbackTool`-Insta
 - IMAP- und POP3-Verbindung konfigurieren und nicht mutierend testen.
 - Neue Nachrichten inkrementell und wiederholbar abrufen; IMAP über UIDVALIDITY/UID, POP3 über UIDL.
 - Nachrichten über eine typsichere Suche finden; IMAP serverseitig, POP3 begrenzt lokal.
-- RFC-822/MIME zuverlässig nach UTF-8, Plaintext und Markdown parsen, inklusive Quotes und Attachment-Metadaten; die HTML-Alternative nur explizit als unvertrauenswürdige Quelle bereitstellen. [geändert]
+- RFC-822/MIME zuverlässig nach UTF-8, Plaintext und Markdown parsen, inklusive Quotes und Attachment-Metadaten; die HTML-Alternative nur explizit als unvertrauenswürdige Quelle bereitstellen.
 - Attachment-Inhalte lazy und größenbegrenzt lesen.
 - Neue Drafts, Antworten, Reply-all und Forwards als `MailDraft` erzeugen.
 - Attachments in Drafts hinzufügen, ersetzen und entfernen.
@@ -262,7 +263,7 @@ Zusätzliche Sicherheitstests prüfen Header-Injektion, ungültige Zertifikate, 
 - Baseline: PHP 8.5 und Ubuntu 26.04 LTS, `ext-imap` nur optional.
 - IMAP: Webklex als gekapselte Start-Engine nach bestandenem Spike; kein eigener vollständiger IMAP-Stack.
 - POP3: kleiner eigener read-only Stream-Konnektor; keine künstliche Draft- oder Flag-Semantik.
-- MIME: Webklex zum Lesen, kleiner interner MIME-Builder für Drafts und interner Mini-Konverter für HTML-zu-Markdown; außer Webklex keine weitere Laufzeitbibliothek. [geändert]
+- MIME: Webklex zum Lesen, kleiner interner MIME-Builder für Drafts und `phore/markdown` für HTML-zu-Markdown sowie konservatives Markdown-zu-HTML; keine weiteren Laufzeitbibliotheken. [geändert]
 - Status: Draft-Erstellung wird als `reply_drafted`/`forward_drafted` gespeichert; `\\Answered` und `$Forwarded` erst nach nachgewiesenem Versand.
 - AI-Sicherheitsgrenze: Lesen, Suchen und Drafts; kein Versand und keine destruktiven Operationen im MVP.
 

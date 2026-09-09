@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Phore\MailClient\Domain;
 
-use Phore\MailClient\Support\SimpleHtmlToMarkdown;
+use Phore\Markdown\HtmlToMarkdown;
 
 final readonly class MailBody
 {
@@ -19,12 +19,12 @@ final readonly class MailBody
         public ?string $quotedMarkdown = null,
         public array $warnings = [],
     ) {
-        $this->markdown = $markdown ?? ($text !== '' ? $text : SimpleHtmlToMarkdown::convert($html ?? ''));
+        $this->markdown = $markdown ?? ($text !== '' ? $text : HtmlToMarkdown::convert($html ?? ''));
     }
 
     public function asText(): string
     {
-        return $this->text !== '' ? $this->text : SimpleHtmlToMarkdown::text($this->html ?? '');
+        return $this->text !== '' ? $this->text : HtmlToMarkdown::toText($this->html ?? '');
     }
 
     public function asHtml(): ?string { return $this->html; }

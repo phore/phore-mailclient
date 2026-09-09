@@ -1,6 +1,6 @@
 # Phore Mail Client
 
-A small, typed PHP 8.5+ API for reading IMAP mailboxes and creating reviewable email drafts. Webklex PHP-IMAP is the only external runtime library; `ext-imap` is not required.
+A small, typed PHP 8.5+ API for reading IMAP mailboxes and creating reviewable email drafts. Webklex PHP-IMAP provides protocol access and `phore/markdown` provides body conversion; `ext-imap` is not required.
 
 ## Quick start
 
@@ -31,7 +31,7 @@ foreach ($batch->messages as $message) {
 }
 ```
 
-`MailBody::asText()` returns the plain alternative or a text fallback, `asMarkdown()` returns the canonical editable body, and `asHtml()` exposes the original HTML alternative explicitly as untrusted source. The small internal converter handles common structure and falls back to stripped text.
+`MailBody::asText()` returns the plain alternative or a text fallback, `asMarkdown()` returns the canonical editable body, and `asHtml()` exposes the original HTML alternative explicitly as untrusted source. [`phore/markdown`](https://github.com/phore/phore-markdown) handles common HTML structure and falls back to stripped text.
 
 `draft()`, `reply()`, `replyAll()`, and `forward()` accept Markdown and save through IMAP APPEND without sending. Replies and forwards preserve the source relation and append the original message as a Markdown blockquote; forwards carry recognized attachments.
 

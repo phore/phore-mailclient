@@ -1,7 +1,7 @@
 {
-  "name": "phore/project",
+  "name": "phore/mail-client",
   "type": "library",
-  "description": "",
+  "description": "A typed PHP API for reading IMAP mailboxes and creating Markdown drafts.",
   "license": "MIT",
   "authors": [
     {
@@ -11,27 +11,33 @@
   ],
   "autoload": {
     "psr-4": {
-      "Phore\\FileSystem\\": "src/"
-    },
-    "files": [
-      "src/functions.php"
-    ]
-  },
-  "require": {
-    "php" : ">=8.3",
-    "ext-yaml": "*",
-    "ext-json": "*"
-  },
-  "require-dev": {
-    "phpunit/phpunit": "^13.2.2"
-  },
-  "suggest": {
-  },
-  "config": {
-    "preferred-install": "source",
-    "allow-plugins": {
-      "php-http/discovery": false
+      "Phore\\MailClient\\": "src/"
     }
   },
-  "minimum-stability": "dev"
+  "autoload-dev": {
+    "psr-4": {
+      "Phore\\MailClient\\Test\\": "test/"
+    }
+  },
+  "require": {
+    "php": ">=8.5",
+    "ext-dom": "*",
+    "ext-fileinfo": "*",
+    "ext-iconv": "*",
+    "ext-json": "*",
+    "ext-libxml": "*",
+    "ext-mbstring": "*",
+    "ext-openssl": "*",
+    "ext-zip": "*",
+    "league/html-to-markdown": "^5.1",
+    "webklex/php-imap": "^6.2"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^13.2"
+  },
+  "config": {
+    "preferred-install": "dist",
+    "sort-packages": true
+  },
+  "minimum-stability": "stable"
 }

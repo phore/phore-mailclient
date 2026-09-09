@@ -33,7 +33,7 @@
     "ext-mbstring": "*",
     "ext-openssl": "*",
     "ext-zip": "*",
-    "phore/markdown": "dev-feat/markdown-converters",
+    "phore/markdown": "dev-main",
     "webklex/php-imap": "^6.2"
   },
   "require-dev": {

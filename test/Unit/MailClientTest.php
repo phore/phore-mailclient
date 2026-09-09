@@ -15,6 +15,7 @@ use Phore\MailClient\Domain\SyncCursor;
 use Phore\MailClient\MailClient;
 use Phore\MailClient\State\InMemoryMailState;
 use Phore\MailClient\Test\Support\FakeMailboxConnector;
+use Phore\MailClient\Test\Support\FakeDraftConnector;
 use PHPUnit\Framework\TestCase;
 
 final class MailClientTest extends TestCase
@@ -41,5 +42,18 @@ final class MailClientTest extends TestCase
         self::assertSame('41', $connector->receivedCursor?->value);
         self::assertSame('42', $state->cursor('support')?->value);
         self::assertSame('support@example.org', $batch->messages[0]->reply()->from->address);
+    }
+
+    public function testComposesAndSavesNewMarkdownDraft(): void
+    {
+        $connector = new FakeMailboxConnector([]);
+        $drafts = new FakeDraftConnector();
+        $account = MailAccount::imap('support', 'imap.example.org', 'support@example.org', new StaticCredential('secret'));
+        $client = MailClient::connect($account, $connector, $drafts);
+
+        $saved = $client->draft(['recipient@example.org'], 'Update')->withMarkdown('**Done**')->save();
+
+        self::assertSame('99', $saved->reference->remoteId);
+        self::assertSame('**Done**', $drafts->saved?->markdown());
     }
 }

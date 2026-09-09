@@ -74,7 +74,7 @@ final readonly class MailMessage
     {
         $messageId = sprintf('<%s@phore.local>', bin2hex(random_bytes(16)));
         $headers = [];
-        if ($this->reference->messageId !== null) {
+        if ($this->reference->messageId !== null && $type !== DraftRelationType::Forward) {
             $headers['In-Reply-To'] = $this->reference->messageId;
             $headers['References'] = trim(implode(' ', [...$this->references, $this->reference->messageId]));
         }

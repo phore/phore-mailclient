@@ -44,6 +44,7 @@ final class MailMessageTest extends TestCase
         self::assertCount(1, $draft->attachments);
         self::assertStringContainsString('> Forwarded message', $draft->markdown());
         self::assertSame(DraftRelationType::Forward, $draft->relation?->type);
+        self::assertArrayNotHasKey('In-Reply-To', $draft->headers);
     }
 
     private function message(): MailMessage

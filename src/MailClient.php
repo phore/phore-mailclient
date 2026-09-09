@@ -10,6 +10,8 @@ use Phore\MailClient\Contract\MailboxConnector;
 use Phore\MailClient\Contract\MailStateStore;
 use Phore\MailClient\Domain\ConnectionReport;
 use Phore\MailClient\Domain\MailAccount;
+use Phore\MailClient\Domain\MailAddress;
+use Phore\MailClient\Domain\MailDraft;
 use Phore\MailClient\Domain\MailMessage;
 use Phore\MailClient\Domain\MailReference;
 use Phore\MailClient\Domain\MailSearch;
@@ -32,6 +34,7 @@ final readonly class MailClient
         ?MailStateStore $state = null,
     ): self {
         $mailbox ??= new WebklexImapConnector($account);
+        $drafts ??= $mailbox instanceof DraftConnector ? $mailbox : null;
         return new self($account, $mailbox, $drafts, $state ?? new InMemoryMailState());
     }
 
@@ -52,6 +55,20 @@ final readonly class MailClient
     }
 
     public function get(MailReference $reference): MailMessage { return $this->bind($this->mailbox->get($reference)); }
+
+    /** @param list<MailAddress|string> $to */
+    public function draft(array $to, string $subject): MailDraft
+    {
+        $recipients = array_map(static fn (MailAddress|string $item): MailAddress => $item instanceof MailAddress ? $item : new MailAddress($item), $to);
+        return new MailDraft(
+            from: $this->account->address,
+            to: $recipients,
+            cc: [],
+            subject: $subject,
+            messageId: sprintf('<%s@phore.local>', bin2hex(random_bytes(16))),
+            connector: $this->drafts,
+        );
+    }
 
     private function bind(MailMessage $message): MailMessage
     {

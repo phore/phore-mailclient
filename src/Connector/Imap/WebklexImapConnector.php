@@ -6,42 +6,39 @@ namespace Phore\MailClient\Connector\Imap;
 
 use DateTimeImmutable;
 use InvalidArgumentException;
-use League\HTMLToMarkdown\HtmlConverter;
+use Phore\MailClient\Contract\DraftConnector;
 use Phore\MailClient\Contract\MailboxConnector;
 use Phore\MailClient\Domain\ConnectionReport;
 use Phore\MailClient\Domain\MailAccount;
 use Phore\MailClient\Domain\MailAddress;
 use Phore\MailClient\Domain\MailAttachment;
 use Phore\MailClient\Domain\MailBody;
+use Phore\MailClient\Domain\MailDraft;
 use Phore\MailClient\Domain\MailMessage;
 use Phore\MailClient\Domain\MailProtocol;
 use Phore\MailClient\Domain\MailReference;
 use Phore\MailClient\Domain\MailSearch;
 use Phore\MailClient\Domain\MailboxCapabilities;
+use Phore\MailClient\Domain\SavedDraft;
 use Phore\MailClient\Domain\SyncBatch;
 use Phore\MailClient\Domain\SyncCursor;
 use Phore\MailClient\Domain\TlsMode;
+use Phore\MailClient\Support\MimeDraftBuilder;
 use RuntimeException;
 use Throwable;
 use Webklex\PHPIMAP\Client;
 use Webklex\PHPIMAP\ClientManager;
 use Webklex\PHPIMAP\Message;
 
-final class WebklexImapConnector implements MailboxConnector
+final class WebklexImapConnector implements MailboxConnector, DraftConnector
 {
     private ?Client $client = null;
-    private HtmlConverter $htmlConverter;
 
     public function __construct(private readonly MailAccount $account)
     {
         if ($account->protocol !== MailProtocol::Imap) {
             throw new InvalidArgumentException('WebklexImapConnector requires an IMAP account.');
         }
-        $this->htmlConverter = new HtmlConverter([
-            'strip_tags' => true,
-            'remove_nodes' => 'script style form iframe img',
-            'hard_break' => true,
-        ]);
     }
 
     public function testConnection(): ConnectionReport
@@ -95,6 +92,27 @@ final class WebklexImapConnector implements MailboxConnector
         return $this->mapMessage($message, $reference->mailbox);
     }
 
+    public function save(MailDraft $draft): SavedDraft
+    {
+        $folder = $this->draftFolder();
+        $existing = $folder->messages()->messageId($draft->messageId)->get()->first();
+        if ($existing instanceof Message) {
+            return new SavedDraft($draft->messageId, new MailReference($this->account->id, $folder->path, (string) $existing->getUid(), $draft->messageId), $draft->relation);
+        }
+
+        $status = $folder->select();
+        $nextUid = isset($status['uidnext']) ? (string) $status['uidnext'] : null;
+        $response = $folder->appendMessage(MimeDraftBuilder::build($draft), ['\\Draft']);
+        if (!array_any($response, static fn (mixed $line): bool => is_string($line) && str_starts_with($line, 'OK'))) {
+            throw new RuntimeException('IMAP server rejected the draft.');
+        }
+        if ($nextUid === null) {
+            $stored = $folder->messages()->messageId($draft->messageId)->get()->first();
+            $nextUid = $stored instanceof Message ? (string) $stored->getUid() : 'unknown';
+        }
+        return new SavedDraft($draft->messageId, new MailReference($this->account->id, $folder->path, $nextUid, $draft->messageId), $draft->relation);
+    }
+
     private function client(): Client
     {
         if ($this->client !== null) { return $this->client; }
@@ -113,6 +131,18 @@ final class WebklexImapConnector implements MailboxConnector
 
     private function inbox(): mixed { return $this->folder($this->account->folders['inbox'] ?? 'INBOX'); }
 
+    private function draftFolder(): mixed
+    {
+        $names = isset($this->account->folders['drafts'])
+            ? [$this->account->folders['drafts']]
+            : ['Drafts', 'INBOX.Drafts', 'Entwürfe'];
+        foreach ($names as $name) {
+            $folder = $this->client()->getFolderByName($name, true);
+            if ($folder !== null) { return $folder; }
+        }
+        throw new RuntimeException('No IMAP draft folder could be resolved. Configure folders["drafts"].');
+    }
+
     private function folder(string $name): mixed
     {
         $folder = $this->client()->getFolderByName($name);
@@ -122,13 +152,13 @@ final class WebklexImapConnector implements MailboxConnector
 
     private function capabilities(): MailboxCapabilities
     {
-        return new MailboxCapabilities(search: true, folders: true, appendDraft: false, idle: true, oauth2: true);
+        return new MailboxCapabilities(search: true, folders: true, appendDraft: true, idle: true, oauth2: true);
     }
 
     private function mapMessage(Message $message, string $mailbox = 'INBOX'): MailMessage
     {
         $plain = trim($message->getTextBody());
-        $markdown = $plain !== '' ? $plain : trim($this->htmlConverter->convert($message->getHTMLBody()));
+        $html = trim($message->getHTMLBody());
         $messageId = trim((string) $message->getMessageId());
         $date = $message->getDate()->toDate();
         $attachments = [];
@@ -157,7 +187,7 @@ final class WebklexImapConnector implements MailboxConnector
             cc: $this->addresses($message->getCc()->all()),
             subject: trim((string) $message->getSubject()),
             date: DateTimeImmutable::createFromInterface($date),
-            body: new MailBody($markdown),
+            body: new MailBody(text: $plain, html: $html !== '' ? $html : null),
             attachments: $attachments,
             references: array_values(array_filter(array_map('strval', $message->getReferences()->all()))),
         );

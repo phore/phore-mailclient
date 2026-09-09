@@ -29,7 +29,6 @@
     "ext-mbstring": "*",
     "ext-openssl": "*",
     "ext-zip": "*",
-    "league/html-to-markdown": "^5.1",
     "webklex/php-imap": "^6.2"
   },
   "require-dev": {

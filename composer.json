@@ -9,12 +9,6 @@
       "email": "leuffen@continue.de"
     }
   ],
-  "repositories": [
-    {
-      "type": "vcs",
-      "url": "https://github.com/phore/phore-markdown"
-    }
-  ],
   "autoload": {
     "psr-4": {
       "Phore\\MailClient\\": "src/"

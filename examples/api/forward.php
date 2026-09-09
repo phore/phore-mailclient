@@ -14,6 +14,8 @@ $email = $mailClient->get($emailId);
 
 // Client convenience, still a LOCAL transformation: the configured from identity
 // supplies both address and name without repeating them for each forward.
+// The configured forward introduction and signature are resolved locally too;
+// see create-message-defaults.php for placeholders, HTML and inline images.
 // The new Email has no connection. No network request is made by forward().
 // New Email/Message-ID, Fwd: subject, original From/To/Cc/Date/Subject and
 // full Markdown body quoted below the new text. The source remains unchanged.
@@ -32,6 +34,9 @@ $forward = $mailClient->forward(
 //     to: ['colleague@example.org'],
 //     markdown: 'For your information.',
 //     from: new EmailAddress('office@example.org', 'Office Team'),
+//     quote: ['forward' => 'Weitergeleitet von {{from}} am {{date}}:'],
+//     signature: false, // or an explicit Signature for this identity
+//     signaturePosition: 'below-quote',
 // );
 //
 // Sender resolution:
@@ -42,7 +47,9 @@ $forward = $mailClient->forward(
 // - No address from either source: throw before creating the forward.
 // Never infer the sender from the original email or the IMAP username.
 // Email::forward(from: new EmailAddress(...), ...) works fully offline.
-// Once resolved, saveDraft() preserves the chosen sender; it does not replace it.
+// Once resolved, saveDraft() preserves sender, template and signature; it does
+// not append another signature or expand the quote template a second time.
+// includeAttachments controls source attachments, not our signature's own images.
 foreach ($forward->from() as $author) {
     echo 'Forward author: ' . $author->toString() . "\n";
 }

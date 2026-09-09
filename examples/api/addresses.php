@@ -49,13 +49,24 @@ foreach ($recipients as $recipient) {
 // Use parseList() explicitly for comma-separated input, even inside arrays.
 // Output contract: from(), to(), cc(), bcc(), replyTo() ALWAYS list<EmailAddress>.
 // Omitted optional lists return []; no string/object/null shape changes.
-// A composed From must contain at least one author; [] is not a default identity.
+// From alone also accepts null and defaults to null when omitted. Before saving,
+// from() returns [] for this unresolved identity; saveDraft() fills it from the
+// mailbox configuration in the returned Email, leaving the original unchanged.
+// Explicit from: [] is invalid; use omission/null to request the default.
+// Explicit authors must never be replaced by the configured default.
 
 // No recipients yet: an incomplete draft is valid and can be saved without
 // sending. To/Cc/Bcc default to []; choosing recipients may happen later.
-$noRecipients = (new Email(from: $team, subject: 'Work in progress'))
+$noRecipients = (new Email(subject: 'Work in progress'))
     ->withMarkdown('Still **drafting**.');
 
+// To accepts EmailAddress|string|list<EmailAddress|string> (default []).
+// These are equivalent input shapes; the list may contain one or many entries:
+// new Email(to: new EmailAddress('anna@example.org'), subject: 'Hello');
+// new Email(to: [new EmailAddress('anna@example.org'),
+//     new EmailAddress('ben@example.org')], subject: 'Hello');
+// Strings and mixed arrays remain convenient, as shown below.
+//
 // One recipient: string convenience, normalized to an EmailAddress.
 $oneRecipient = new Email(from: $team, to: 'anna@example.org', subject: 'Hello');
 echo $oneRecipient->to()[0]->getAddress() . "\n";
@@ -130,6 +141,7 @@ foreach ([
 // no silently dropped entries or partial list results. parse('a@x.org, b@x.org')
 // fails rather than choosing the first. Reject CR/LF in caller-supplied input;
 // incoming folded headers are unfolded by the MIME reader before address parsing.
+// Validate decoded names too; see compose-draft.php for the full header-safety contract.
 // This first sketch covers bare/name-addr, quoted names (including escaped quotes),
 // UTF-8 display names and MIME-encoded names. Group syntax and obsolete forms are
 // not yet promised; unsupported syntax must fail explicitly, not be misparsed.

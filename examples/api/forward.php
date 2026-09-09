@@ -4,19 +4,29 @@ declare(strict_types=1);
 
 use Phore\MailClient\MailClient;
 
+// API DESIGN ONLY. Choose an ID printed by read-new.php.
+$emailId = $argv[1] ?? throw new RuntimeException('Usage: php forward.php <email-id>');
+
 /** @var MailClient $mailClient */
 $mailClient = require __DIR__ . '/connect-mail-client.php';
+$email = $mailClient->get($emailId);
 
-$email = $mailClient->inbox()->listNew(limit: 1)[0]
-    ?? throw new RuntimeException('No new email found.');
-
+// Local transformation: new Email/Message-ID, Fwd: subject, source envelope and
+// full Markdown body quoted below the new text. The source remains unchanged.
+// No reply-thread headers: forwarding is not replying to the source sender.
 $forward = $email->forward(
+    from: 'support@example.org',
     to: ['colleague@example.org'],
     markdown: 'For your information.',
+    includeAttachments: true,
 );
 
-// forward() quotes the original email and carries its regular attachments by
-// default. Creating the draft does not claim that the email was actually sent.
-$savedDraft = $mailClient->drafts()->save($forward);
+// Attachment descriptors are retained locally. saveDraft() resolves remote
+// attachment content through the client with size limits, not through Email.
+// Set includeAttachments: false to forward just the quoted text.
+$savedDraft = $mailClient->saveDraft($forward);
 
+// A draft is not a sent forward. No $Forwarded flag is set automatically.
+// Only after actual forwarding (e.g. via another client), explicitly call:
+// $mailClient->markForwarded($email);
 echo 'Forward draft saved as ' . $savedDraft->id() . "\n";

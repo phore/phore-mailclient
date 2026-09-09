@@ -6,22 +6,30 @@ use Phore\MailClient\Attachment;
 use Phore\MailClient\Email;
 use Phore\MailClient\MailClient;
 
-/** @var MailClient $mailClient */
-$mailClient = require __DIR__ . '/connect-mail-client.php';
+// API DESIGN ONLY: a usage contract, not a runnable implementation yet.
+require_once dirname(__DIR__, 2) . '/vendor/autoload.php';
 
-// Creating an Email is independent of IMAP. The connected client is needed only
-// when the finished message is stored in a remote folder.
-$email = new Email(
+// No connection, credentials or mailbox are needed to create an email.
+// Email is an immutable value: withMarkdown() and attach() return a new Email.
+// Construction creates a stable Message-ID retained by those local edits.
+$email = (new Email(
+    from: 'sender@example.org',
     to: ['recipient@example.org'],
     subject: 'Project update',
-    markdown: "# Project update\n\nThe first milestone is **complete**.",
-);
+))->withMarkdown("# Project update\n\nThe first milestone is **complete**.");
 
-$email = $email->attach(
-    Attachment::fromPath(__DIR__ . '/files/project-plan.pdf'),
-);
+// Attach this existing example file so the example needs no missing PDF fixture.
+// An application can substitute its own PDF, image or other local file.
+$email = $email->attach(Attachment::fromPath(__FILE__));
 
-// This stores the email as a draft; it does not send it.
-$savedDraft = $mailClient->drafts()->save($email);
+// Only saving needs a connection. The explicit From address is preserved;
+// the client must not silently substitute the connected account's address.
+/** @var MailClient $mailClient */
+$mailClient = require __DIR__ . '/connect-mail-client.php';
+$savedDraft = $mailClient->saveDraft($email);
 
+// saveDraft() returns an Email with a stable server ID; it never sends.
+// Repeating saveDraft() for the same unchanged email must not create duplicates.
+// Editing/replacing an already saved draft is outside this initial API sketch.
+// Saving different content with an already stored Message-ID fails explicitly.
 echo 'Draft saved as ' . $savedDraft->id() . "\n";

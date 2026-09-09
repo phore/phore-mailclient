@@ -20,7 +20,12 @@ foreach ($batch->emails as $email) {
     // not the RFC Message-ID or an IMAP sequence number. get($id) retrieves it later.
     echo 'ID: ' . $email->id() . "\n";
     echo 'Subject: ' . $email->subject() . "\n";
-    echo 'From: ' . $email->from() . "\n\n";
+    // Always list<EmailAddress>, including single-author messages.
+    foreach ($email->from() as $author) {
+        echo 'From: ' . $author->getDisplayName() . ' (' . $author->getAddress() . ")\n";
+    }
+    // The same list shape applies to to(), cc(), bcc() and replyTo().
+    // See addresses.php for all fields and the optional single sender().
 
     // Local body views; derived formats use phore/markdown without fetching URLs.
     // text(): plain alternative or HTML-to-text fallback.

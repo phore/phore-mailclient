@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Phore\MailClient\Attachment;
 use Phore\MailClient\Email;
+use Phore\MailClient\EmailAddress;
 use Phore\MailClient\MailClient;
 
 // API DESIGN ONLY: a usage contract, not a runnable implementation yet.
@@ -11,9 +12,11 @@ require_once dirname(__DIR__, 2) . '/vendor/autoload.php';
 
 // No connection, credentials or mailbox are needed to create an email.
 // Email is an immutable value: withMarkdown() and attach() return a new Email.
+// Address strings remain shorthand; getters always return EmailAddress lists.
+// See addresses.php for multiple To/Cc/Bcc recipients and multiple authors.
 // Construction creates a stable Message-ID retained by those local edits.
 $email = (new Email(
-    from: 'sender@example.org',
+    from: new EmailAddress('sender@example.org', 'Project Team'),
     to: ['recipient@example.org'],
     subject: 'Project update',
 ))->withMarkdown("# Project update\n\nThe first milestone is **complete**.");

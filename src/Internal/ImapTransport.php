@@ -24,7 +24,12 @@ final class ImapTransport implements Transport
             $this->client->connect(); $protocol = $this->client->getConnection();
             if (!$protocol instanceof ImapProtocol) { throw new RuntimeException('Pure PHP IMAP required.'); }
             $this->protocol = $protocol;
-        } catch (\Throwable) { throw new RuntimeException('IMAP TLS connection or authentication failed.'); }
+        } catch (\Throwable $error) {
+            // Keep diagnostic types, never server text, credentials or a sensitive trace.
+            $types = [$error::class]; $cause = $error->getPrevious();
+            while ($cause !== null && count($types) < 4) { $types[] = $cause::class; $cause = $cause->getPrevious(); }
+            throw new RuntimeException('IMAP connection failed: ' . implode(' / ',$types));
+        }
     }
     public function select(string $folder, bool $write = false): array
     {

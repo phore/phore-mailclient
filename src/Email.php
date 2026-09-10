@@ -62,7 +62,7 @@ final class Email
     public function sourceId(): ?string { return $this->sourceId; }
     /** @internal */
     public function sourceAction(): ?string { return $this->sourceAction; }
-    public function attachments(): array { return [...$this->files, ...($this->signature instanceof Signature ? $this->signature->images : [])]; }
+    public function attachments(): array { return [...$this->files, ...($this->signature instanceof Signature ? $this->signature->forMessage($this->messageId)->images : [])]; }
     public function withMarkdown(string $markdown): self { $copy = clone $this; $copy->ownBody = Body::fromMarkdown($markdown); return $copy; }
     public function attach(Attachment $attachment): self { $copy = clone $this; $copy->files[] = $attachment; return $copy; }
     public function withSignature(Signature|false|null $signature): self { $copy = clone $this; $copy->signature = $signature; return $copy; }
@@ -72,7 +72,8 @@ final class Email
         $text = [$this->ownBody->text()]; $html = [$this->ownBody->html() ?? Html::literal($this->ownBody->text())]; $md = [$this->ownBody->markdown()];
         $addSignature = function () use (&$text, &$html, &$md): void {
             if ($this->signature instanceof Signature) {
-                $text[] = $this->signature->body->text(); $html[] = $this->signature->body->html(); $md[] = $this->signature->body->markdown();
+                $signature = $this->signature->forMessage($this->messageId);
+                $text[] = $signature->body->text(); $html[] = $signature->body->html(); $md[] = $signature->body->markdown();
             }
         };
         if ($this->signaturePosition === 'above-quote') { $addSignature(); }

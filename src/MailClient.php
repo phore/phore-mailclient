@@ -102,7 +102,7 @@ final class MailClient
     public function openAttachment(Email $email, Attachment $attachment, int $maxBytes = 10_000_000)
     {
         if ($maxBytes < 1 || $maxBytes > self::MAX_BYTES) { throw new InvalidArgumentException('Invalid attachment byte limit.'); }
-        if (!in_array($attachment,$email->attachments(),true)) { throw new InvalidArgumentException('Attachment does not belong to this Email.'); }
+        if (!in_array($attachment,$email->attachments(),false)) { throw new InvalidArgumentException('Attachment does not belong to this Email.'); }
         $bytes = $this->attachmentBytes($attachment,$maxBytes);
         $stream = fopen('php://temp','w+b');
         if ($stream === false) { throw new RuntimeException('Cannot allocate attachment stream.'); }

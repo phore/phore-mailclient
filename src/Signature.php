@@ -10,6 +10,17 @@ final readonly class Signature
 {
     private function __construct(public Body $body, public array $images) {}
     public static function fromMarkdown(string $markdown): self { return new self(Body::fromMarkdown($markdown), []); }
+    /** @internal Stable per-message IDs prevent collisions when a signature is reused. */
+    public function forMessage(string $messageId): self
+    {
+        $images = []; $replace = [];
+        foreach ($this->images as $image) {
+            $id = hash('sha256',$messageId . ':' . $image->contentId) . '@phore.signature';
+            $replace['cid:' . $image->contentId] = 'cid:' . $id;
+            $images[] = Attachment::fromBytes($image->filename(),$image->mediaType(),$image->content,$id);
+        }
+        return new self(new Body($this->body->text(),$this->body->html() === null ? null : strtr($this->body->html(),$replace),$this->body->markdown()),$images);
+    }
     public static function fromHtml(string $html, ?string $text = null, array $inlineImages = [], int $maxImageBytes = 2_000_000): self
     {
         $images = []; $ids = [];

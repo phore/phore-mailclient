@@ -24,7 +24,7 @@
     "ext-openssl": "*",
     "ext-zip": "*",
     "phore/markdown": "dev-main",
-    "webklex/php-imap": "6.2.0"
+    "webklex/php-imap": "~6.2.0"
   },
   "require-dev": {
     "phpunit/phpunit": "^13.2"

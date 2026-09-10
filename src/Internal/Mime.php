@@ -13,11 +13,14 @@ final class Mime
     public static function fingerprint(Email $email, array $files): string
     {
         $addresses = static fn(array $list): array => array_map(static fn(EmailAddress $a): array => [$a->getAddress(),$a->getName()], $list);
+        $fileValues = array_map(static fn(Attachment $a): array => [$a->filename(),$a->mediaType(),$a->contentId,hash('sha256',$a->content)], $files);
+        // Multipart/related groups inline images before regular attachments.
+        usort($fileValues,static fn(array $a,array $b): int => strcmp(json_encode($a),json_encode($b)));
         return hash('sha256', json_encode([
             $addresses($email->from()),$addresses($email->to()),$addresses($email->cc()),$addresses($email->bcc()),$addresses($email->replyTo()),
             $email->sender()?->toString(),$email->subject(),$email->messageId(),$email->date()?->format('U'),$email->inReplyTo(),$email->references(),
             self::lf($email->body()->text()),$email->body()->html() === null ? null : self::lf($email->body()->html()),
-            array_map(static fn(Attachment $a): array => [$a->filename(),$a->mediaType(),$a->contentId,hash('sha256',$a->content)], $files),
+            $fileValues,
         ], JSON_THROW_ON_ERROR));
     }
     public static function build(Email $email, array $files): string

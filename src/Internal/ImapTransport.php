@@ -21,7 +21,7 @@ final class ImapTransport implements Transport
             'protocol' => 'imap', 'encryption' => 'ssl', 'validate_cert' => true, 'timeout' => 30,
         ]);
         try {
-            $this->client->connect(); $protocol = $this->client->getConnection();
+            @$this->client->connect(); $protocol = $this->client->getConnection();
             if (!$protocol instanceof ImapProtocol) { throw new RuntimeException('Pure PHP IMAP required.'); }
             $this->protocol = $protocol;
         } catch (\Throwable $error) {
@@ -59,15 +59,12 @@ final class ImapTransport implements Transport
     }
     public function metadata(int $uid): array
     {
-        // Webklex 6.2's scalar-UID path reads beyond the tagged completion.
-        $rows = $this->protocol->fetch(['UID','FLAGS','RFC822.SIZE','BODYSTRUCTURE'], [$uid])->validatedData();
-        return $rows[$uid] ?? throw new RuntimeException('Message no longer exists.');
+        return $this->fetch($uid,'UID FLAGS RFC822.SIZE BODYSTRUCTURE');
     }
     public function part(int $uid, string $section, int $maxBytes): string
     {
         if ($maxBytes < 1 || !preg_match('/^(HEADER|[1-9][0-9]*(?:\.[1-9][0-9]*)*)$/D', $section)) { throw new \InvalidArgumentException('Invalid part request.'); }
-        $rows = $this->protocol->fetch(['UID', 'BODY.PEEK[' . $section . ']<0.' . ($maxBytes + 1) . '>'], [$uid])->validatedData();
-        $data = $rows[$uid] ?? throw new RuntimeException('Message no longer exists.');
+        $data = $this->fetch($uid,'UID BODY.PEEK[' . $section . ']<0.' . ($maxBytes + 1) . '>');
         foreach ($data as $key => $value) {
             if (str_starts_with(strtoupper((string)$key), 'BODY[')) {
                 if (!is_string($value) || strlen($value) > $maxBytes) { throw new RuntimeException('MIME part exceeds byte limit.'); }
@@ -75,6 +72,14 @@ final class ImapTransport implements Transport
             }
         }
         throw new RuntimeException('Server did not return the requested MIME part.');
+    }
+    private function fetch(int $uid, string $fields): array
+    {
+        // Webklex 6.2 misparses quoted strings immediately followed by ')'.
+        // Keep its command/TLS engine but parse FETCH payloads without that loss.
+        $response = $this->protocol->requestAndResponse('UID FETCH',[(string)$uid,'(' . $fields . ')'],true);
+        $response->validate();
+        return ImapTokens::fetch(implode('',$response->getResponse()),$uid);
     }
     public function append(string $folder, string $mime): void
     { $this->protocol->appendMessage(mb_convert_encoding($folder, 'UTF7-IMAP', 'UTF-8'), $mime, ['\\Draft'])->validate(); }

@@ -42,7 +42,7 @@ final class MailClientTest extends TestCase
     }
     public function testUnknownAutomaticActionIsRejected(): void
     {
-        $client = new MailClient($this->createMock(Transport::class),'account');
+        $client = new MailClient($this->createStub(Transport::class),'account');
         $this->expectException(\InvalidArgumentException::class); $client->setAutomaticMode(true,'delete');
     }
 }

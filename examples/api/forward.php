@@ -5,7 +5,7 @@ declare(strict_types=1);
 use Phore\MailClient\EmailAddress;
 use Phore\MailClient\MailClient;
 
-// API DESIGN ONLY. Choose an ID printed by read-new.php.
+// Choose an ID printed by read-new.php.
 $emailId = $argv[1] ?? throw new RuntimeException('Usage: php forward.php <email-id>');
 
 /** @var MailClient $mailClient */
@@ -59,7 +59,8 @@ foreach ($forward->from() as $author) {
 // Set includeAttachments: false to forward just the quoted text.
 $savedDraft = $mailClient->saveDraft($forward);
 
-// A draft is not a sent forward. No $Forwarded flag is set automatically.
-// Only after actual forwarding (e.g. via another client), explicitly call:
+// Automatic mode sets $Forwarded after successful draft storage, without sending.
+// Disable automatic forwarded to reserve that flag for actual forwarding;
+// it can also be set explicitly:
 // $mailClient->markForwarded($email);
 echo 'Forward draft saved as ' . $savedDraft->id() . "\n";

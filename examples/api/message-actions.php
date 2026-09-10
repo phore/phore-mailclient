@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 use Phore\MailClient\MailClient;
 
-// API DESIGN ONLY. Each invocation selects exactly ONE action and a concrete ID.
+// Each invocation selects exactly ONE action and a concrete ID.
 // Example: php message-actions.php <email-id> mark-read
-// These are proposed real server writes, not changes to an in-memory Email.
+// These are real server writes, not changes to an in-memory Email.
 $emailId = $argv[1] ?? throw new RuntimeException('Provide an email ID from read-new.php.');
 $action = $argv[2] ?? throw new RuntimeException('Choose an explicit action.');
 $allowed = ['mark-read', 'mark-unread', 'mark-answered', 'mark-forwarded', 'star', 'unstar',

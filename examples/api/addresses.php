@@ -5,7 +5,7 @@ declare(strict_types=1);
 use Phore\MailClient\Email;
 use Phore\MailClient\EmailAddress;
 
-// API DESIGN ONLY: proposed behavior, not implemented in this PR.
+// Executable API example.
 // All examples below work locally, without IMAP credentials or a connection.
 require_once dirname(__DIR__, 2) . '/vendor/autoload.php';
 

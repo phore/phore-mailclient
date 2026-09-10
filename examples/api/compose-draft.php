@@ -7,7 +7,7 @@ use Phore\MailClient\Email;
 use Phore\MailClient\EmailAddress;
 use Phore\MailClient\MailClient;
 
-// API DESIGN ONLY: a usage contract, not a runnable implementation yet.
+// Executable API example.
 require_once dirname(__DIR__, 2) . '/vendor/autoload.php';
 
 // No connection, credentials or mailbox are needed to create an email.

@@ -1,16 +1,26 @@
 name: tests
-
-on: [push]
-
+on: [push, pull_request]
+permissions:
+  contents: read
 jobs:
-  build:
-
-    runs-on: ubuntu-latest
-    
+  test:
+    runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v1
-    - name: Download kickstart
-      run: curl -o ./kickstart.sh 'https://raw.githubusercontent.com/nfra-project/nfra-kickstart/master/dist/kickstart.sh' && chmod +x ./kickstart.sh
-    - name: UnitTests
-      run: ./kickstart.sh :test
-  
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: dom, mbstring, iconv, openssl, zip, fileinfo, :imap
+          coverage: none
+          tools: composer:v2
+      - run: composer validate --strict
+      - run: composer install --prefer-dist --no-interaction --no-progress
+      - name: Syntax and offline example
+        run: |
+          find src test examples/api -name '*.php' -print0 | xargs -0 -n1 php -l
+          php examples/api/addresses.php
+      - name: Disposable Dovecot with verified TLS
+        run: bash test/Integration/dovecot.sh
+      - run: vendor/bin/phpunit
+        env:
+          PHORE_TEST_IMAP: '1'

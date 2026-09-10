@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use Phore\MailClient\MailClient;
 
-// API DESIGN ONLY. Choose an ID printed by read-new.php, never an arbitrary email.
+// Choose an ID printed by read-new.php, never an arbitrary email.
 $emailId = $argv[1] ?? throw new RuntimeException('Usage: php reply.php <email-id>');
 
 /** @var MailClient $mailClient */
@@ -55,6 +55,7 @@ $reply = $mailClient->reply(
 echo $reply->body()->markdown() . "\n";
 $savedDraft = $mailClient->saveDraft($reply);
 
-// Saving a reply draft must NOT mark the original answered or read.
-// markAnswered($email) is an explicit server action after an actual reply was sent.
+// Automatic mode marks the original Answered after the reply draft is saved.
+// Disable automatic answered to reserve that flag for actual sending;
+// markAnswered($email) remains an explicit server action in either mode.
 echo 'Reply draft saved as ' . $savedDraft->id() . "\n";

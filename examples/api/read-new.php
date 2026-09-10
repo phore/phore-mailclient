@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 use Phore\MailClient\MailClient;
 
-// API DESIGN ONLY: a usage contract, not a runnable implementation yet.
+// Executable API example.
 /** @var MailClient $mailClient */
 $mailClient = require __DIR__ . '/connect-mail-client.php';
 
 // "New" means arrived after the supplied cursor, NOT unread.
-// No cursor starts at the oldest available message. Reading never marks it read.
+// No cursor starts at the oldest available message. Automatic mode marks read mail Seen.
+// Use MAIL_MODE=manual (or disable automatic seen) for reads without flag changes.
 // The application stores one opaque cursor per account/folder; the client neither
 // persists nor advances it implicitly. A stale UIDVALIDITY requires explicit resync.
 $cursor = getenv('MAIL_SYNC_CURSOR') ?: null;

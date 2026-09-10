@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use Phore\MailClient\Signature;
 
-// API DESIGN ONLY. Shared message configuration; no connection required.
+// Shared message configuration; no connection required.
 require_once dirname(__DIR__, 2) . '/vendor/autoload.php';
 
 // Optional local PNG/JPEG/GIF logo, e.g. MAIL_SIGNATURE_IMAGE=/path/to/logo.png.

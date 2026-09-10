@@ -5,7 +5,7 @@ declare(strict_types=1);
 use Phore\MailClient\EmailAddress;
 use Phore\MailClient\MailClient;
 
-// API DESIGN ONLY: these classes/methods are proposed, not implemented in this PR.
+// Executable API example.
 require_once dirname(__DIR__, 2) . '/vendor/autoload.php';
 
 $env = static function (string $name, ?string $default = null): string {
@@ -36,8 +36,12 @@ $defaultFrom = $fromAddress === ''
 // reply()/replyAll() provide the same convenience for templates and signatures.
 // These methods resolve defaults locally; saveDraft() resolves them for new Email.
 // All examples use the inbox by default; drafts/trash are resolved by the client.
+// After connecting: setAutomaticMode(false) disables all automatic flags.
+// setAutomaticMode(false, 'seen') disables only Seen; answered/forwarded
+// can be configured independently. Explicit flag methods work in either mode.
 // TLS and certificate verification are mandatory; secrets must never be logged.
 return MailClient::connect(
+    mode: $env('MAIL_MODE', 'automatic'), // 'manual' disables automatic flags
     host: $env('MAIL_IMAP_HOST'),
     username: $env('MAIL_IMAP_USERNAME'),
     password: $env('MAIL_IMAP_PASSWORD'),

@@ -5,6 +5,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
@@ -21,6 +22,6 @@ jobs:
           php examples/api/addresses.php
       - name: Disposable Dovecot with verified TLS
         run: bash test/Integration/dovecot.sh
-      - run: vendor/bin/phpunit
+      - run: timeout 180 vendor/bin/phpunit --debug
         env:
           PHORE_TEST_IMAP: '1'

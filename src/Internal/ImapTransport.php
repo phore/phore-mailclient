@@ -58,11 +58,16 @@ final class ImapTransport implements Transport
         return array_values(array_filter($ids, static fn(int $id): bool => $id > ($criteria['after'] ?? 0)));
     }
     public function metadata(int $uid): array
-    { return $this->protocol->fetch(['UID','FLAGS','RFC822.SIZE','BODYSTRUCTURE'], $uid)->validatedData(); }
+    {
+        // Webklex 6.2's scalar-UID path reads beyond the tagged completion.
+        $rows = $this->protocol->fetch(['UID','FLAGS','RFC822.SIZE','BODYSTRUCTURE'], [$uid])->validatedData();
+        return $rows[$uid] ?? throw new RuntimeException('Message no longer exists.');
+    }
     public function part(int $uid, string $section, int $maxBytes): string
     {
         if ($maxBytes < 1 || !preg_match('/^(HEADER|[1-9][0-9]*(?:\.[1-9][0-9]*)*)$/D', $section)) { throw new \InvalidArgumentException('Invalid part request.'); }
-        $data = $this->protocol->fetch(['UID', 'BODY.PEEK[' . $section . ']<0.' . ($maxBytes + 1) . '>'], $uid)->validatedData();
+        $rows = $this->protocol->fetch(['UID', 'BODY.PEEK[' . $section . ']<0.' . ($maxBytes + 1) . '>'], [$uid])->validatedData();
+        $data = $rows[$uid] ?? throw new RuntimeException('Message no longer exists.');
         foreach ($data as $key => $value) {
             if (str_starts_with(strtoupper((string)$key), 'BODY[')) {
                 if (!is_string($value) || strlen($value) > $maxBytes) { throw new RuntimeException('MIME part exceeds byte limit.'); }

@@ -69,6 +69,8 @@ final class EmailTest extends TestCase
         file_put_contents($path,base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII='));
         try {
             $signature = Signature::fromHtml('<script>bad()</script><p onclick="bad()" style="color:red;background:url(file:///etc/passwd)">Hi <img src="cid:logo" alt="Logo"><a href="javascript:bad()">Link</a></p>',inlineImages:['logo'=>$path]);
+            $recreated = Signature::fromHtml('<img src="cid:logo">',inlineImages:['logo'=>$path]);
+            self::assertSame($signature->images[0]->contentId,$recreated->images[0]->contentId);
             file_put_contents($path,'changed');
             foreach (['<script','onclick','file:','javascript:'] as $bad) { self::assertStringNotContainsString($bad,$signature->body->html()); }
             self::assertStringContainsString('color:red',$signature->body->html());

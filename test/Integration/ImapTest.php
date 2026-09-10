@@ -3,7 +3,7 @@ declare(strict_types=1);
 namespace Phore\MailClient\Test\Integration;
 use PHPUnit\Framework\TestCase;
 use Phore\MailClient\{MailClient,Email,EmailAddress,Attachment,Signature};
-use Phore\MailClient\Internal\{ImapTransport,Mime,Reference};
+use Phore\MailClient\Internal\{ImapTransport,Mime,Reference,Transport};
 
 final class ImapTest extends TestCase
 {
@@ -72,5 +72,42 @@ final class ImapTest extends TestCase
     {
         $this->expectException(\RuntimeException::class);
         MailClient::connect('127.0.0.1','test','test-secret',1993);
+    }
+    public function testInlineSignatureImagesRoundTripWithRegularAttachment(): void
+    {
+        $path = tempnam(sys_get_temp_dir(),'logo');
+        file_put_contents($path,base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII='));
+        try { $signature = Signature::fromHtml('<p>Signature<img src="cid:logo" alt="Logo"></p>',inlineImages:['logo'=>$path]); }
+        finally { unlink($path); }
+        $client = $this->client(defaults:['signatures'=>['new'=>$signature,'forward'=>$signature]]);
+        $original = (new Email())->withMarkdown('Body')->attach(Attachment::fromBytes('regular.txt','text/plain','regular'));
+        $saved = $client->saveDraft($original); $fetched = $client->get($saved->id());
+        self::assertCount(2,$fetched->attachments());
+        self::assertSame($saved->id(),$client->saveDraft($original)->id());
+        self::assertSame($saved->body()->html(),$fetched->body()->html());
+        $forward = $client->saveDraft($client->forward($fetched,to:'other@example.org',includeAttachments:true));
+        self::assertCount(3,$client->get($forward->id())->attachments());
+    }
+    public function testRetryAfterLostAppendResponseFindsTheStoredDraft(): void
+    {
+        $transport = new class(new ImapTransport('localhost','test','test-secret',1993)) implements Transport {
+            public int $appends = 0;
+            public function __construct(private Transport $inner) {}
+            public function select(string $folder,bool $write=false): array { return $this->inner->select($folder,$write); }
+            public function search(array $criteria): array { return $this->inner->search($criteria); }
+            public function metadata(int $uid): array { return $this->inner->metadata($uid); }
+            public function part(int $uid,string $section,int $maxBytes): string { return $this->inner->part($uid,$section,$maxBytes); }
+            public function append(string $folder,string $mime): void {
+                $this->appends++; $this->inner->append($folder,$mime);
+                if ($this->appends===1) { throw new \RuntimeException('Simulated lost APPEND response.'); }
+            }
+            public function flag(int $uid,string $flag,bool $add): void { $this->inner->flag($uid,$flag,$add); }
+            public function move(int $uid,string $folder): array { return $this->inner->move($uid,$folder); }
+        };
+        $client = new MailClient($transport,hash('sha256','localhost:1993:test'),from:'me@example.org',mode:'manual');
+        $email = new Email(subject:'Lost response');
+        try { $client->saveDraft($email); self::fail('Expected simulated connection failure'); }
+        catch (\RuntimeException $error) { self::assertSame('Simulated lost APPEND response.',$error->getMessage()); }
+        self::assertNotNull($client->saveDraft($email)->id()); self::assertSame(1,$transport->appends);
     }
 }

@@ -29,7 +29,8 @@ final readonly class Signature
             $image = Attachment::fromPath($path, $maxImageBytes);
             $size = @getimagesizefromstring($image->content);
             if ($size === false || !in_array($size[2], [IMAGETYPE_PNG, IMAGETYPE_JPEG, IMAGETYPE_GIF], true)) { throw new InvalidArgumentException('Signature image must be PNG, JPEG or GIF.'); }
-            $id = bin2hex(random_bytes(16)) . '@phore.signature';
+            // Identical configuration rebuilt after a restart must retain retry identity.
+            $id = hash('sha256',$alias . ':' . $image->content) . '@phore.signature';
             $ids[$alias] = $id;
             $images[] = Attachment::fromBytes($image->filename(), $size['mime'], $image->content, $id);
         }

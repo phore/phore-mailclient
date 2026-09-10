@@ -39,7 +39,7 @@
 *.swap
 *~
 .~*
-
+kick.env
 # Editor swap/session files
 Session.vim
 .netrwhist

@@ -1,0 +1,28 @@
+name: WEB.DE connection
+on:
+  workflow_dispatch:
+  push:
+    branches: [design/api-examples, main]
+    paths:
+      - '.github/workflows/webde-connection.yml'
+      - 'test/Provider/webde-connection.php'
+permissions:
+  contents: read
+jobs:
+  connection:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: dom, mbstring, iconv, openssl, zip, fileinfo, :imap
+          coverage: none
+          tools: composer:v2
+      - run: composer install --prefer-dist --no-interaction --no-progress
+      - name: TLS and authentication only
+        run: php -d zend.exception_ignore_args=1 test/Provider/webde-connection.php
+        env:
+          EMAIL: ${{ secrets.EMAIL }}
+          EMAIL_PASSWD: ${{ secrets.EMAIL_PASSWD }}

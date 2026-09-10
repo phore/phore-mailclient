@@ -45,4 +45,46 @@ final class MailClientTest extends TestCase
         $client = new MailClient($this->createStub(Transport::class),'account');
         $this->expectException(\InvalidArgumentException::class); $client->setAutomaticMode(true,'delete');
     }
+    public function testInvalidLimitsFailBeforeIo(): void
+    {
+        $transport = $this->createMock(Transport::class);
+        $transport->expects(self::never())->method('select');
+        $client = new MailClient($transport,'account');
+        foreach ([0,501,-1] as $limit) {
+            try { $client->listNew(limit:$limit); self::fail('Invalid limit accepted'); }
+            catch (\InvalidArgumentException) { self::assertTrue(true); }
+        }
+    }
+    public function testFolderCursorAndMalformedCursorFailBeforeIo(): void
+    {
+        $transport = $this->createMock(Transport::class);
+        $transport->expects(self::never())->method('select');
+        $client = new MailClient($transport,'account');
+        foreach (['not-a-cursor',(new Reference('account','Drafts',1,0))->encode()] as $cursor) {
+            try { $client->listNew(after:$cursor); self::fail('Invalid cursor accepted'); }
+            catch (\InvalidArgumentException) { self::assertTrue(true); }
+        }
+    }
+    public function testProtocolControlledFlagsCannotBeSetExplicitly(): void
+    {
+        $transport = $this->createMock(Transport::class);
+        $transport->expects(self::never())->method('select');
+        $client = new MailClient($transport,'account');
+        $email = (new Email())->onServer((new Reference('account','INBOX',1,1))->encode(),[]);
+        foreach (['\\Deleted','\\Recent',"bad flag","x\r\nSTORE"] as $flag) {
+            try { $client->addFlag($email,$flag); self::fail('Invalid flag accepted'); }
+            catch (\InvalidArgumentException) { self::assertTrue(true); }
+        }
+    }
+    public function testProviderProbeReportsSkippedMessageChecksOnEmptyInbox(): void
+    {
+        require_once dirname(__DIR__) . '/Provider/ReadOnlyProbe.php';
+        $transport = $this->createMock(Transport::class);
+        $transport->expects(self::exactly(2))->method('select')->with('INBOX')->willReturn(['uidvalidity'=>7]);
+        $transport->expects(self::exactly(2))->method('search')->with(['after'=>0])->willReturn([]);
+        foreach (['metadata','part','append','flag','move'] as $method) { $transport->expects(self::never())->method($method); }
+        $results = \Phore\MailClient\Test\Provider\ReadOnlyProbe::run($transport,'account');
+        self::assertContains('PASS: Empty INBOX cursor.',$results);
+        self::assertSame('SKIP: MIME reads, pagination and flag checks require at least one message.',end($results));
+    }
 }

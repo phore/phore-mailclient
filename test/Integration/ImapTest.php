@@ -57,8 +57,11 @@ final class ImapTest extends TestCase
     public function testCursorDoesNotReplayHighestUidAndStaleReferencesFail(): void
     {
         $transport = new ImapTransport('localhost','test','test-secret',1993);
+        $status = $transport->select('INBOX');
+        $existing = $transport->search([]);
+        $cursor = (new Reference(hash('sha256','localhost:1993:test'),'INBOX',(int)$status['uidvalidity'],$existing === [] ? 0 : max($existing)))->encode();
         for ($i=0;$i<3;$i++) { $transport->append('INBOX',Mime::build(new Email(from:'seed@example.org',subject:'Fixture '.$i),[])); }
-        $client = $this->client(); $batch = $client->listNew(limit:2);
+        $client = $this->client(); $batch = $client->listNew(after:$cursor,limit:2);
         self::assertCount(2,$batch->emails);
         self::assertNotContains('\\Seen',$batch->emails[0]->flags());
         $next = $client->listNew(after:$batch->nextCursor,limit:2); self::assertCount(1,$next->emails);
@@ -109,5 +112,49 @@ final class ImapTest extends TestCase
         try { $client->saveDraft($email); self::fail('Expected simulated connection failure'); }
         catch (\RuntimeException $error) { self::assertSame('Simulated lost APPEND response.',$error->getMessage()); }
         self::assertNotNull($client->saveDraft($email)->id()); self::assertSame(1,$transport->appends);
+    }
+    public function testLiveProviderProbeAgainstDisposableInbox(): void
+    {
+        require_once dirname(__DIR__) . '/Provider/ReadOnlyProbe.php';
+        $transport = new ImapTransport('localhost','test','test-secret',1993);
+        for ($i=0;$i<3;$i++) {
+            $email = (new Email(from:'seed@example.org',subject:'Provider fixture '.$i))->withMarkdown('**Body**');
+            $file = Attachment::fromBytes('binary.bin','application/octet-stream',"\x00\xfffixture");
+            $transport->append('INBOX',Mime::build($email->attach($file),[$file]));
+        }
+        $results = \Phore\MailClient\Test\Provider\ReadOnlyProbe::run($transport,hash('sha256','localhost:1993:test'));
+        self::assertCount(5,$results);
+        self::assertContains('PASS: Persistent flags unchanged after reads.',$results);
+    }
+    public function testAttachmentLimitFailureAndReadLeaveFlagsUnchanged(): void
+    {
+        $client = $this->client();
+        $file = Attachment::fromBytes('binary.bin','application/octet-stream',"\x00\xff1234");
+        $saved = $client->saveDraft((new Email())->attach($file));
+        $fetched = $client->get($saved->id());
+        $remote = $fetched->attachments()[0];
+        self::assertNull($remote->content);
+        try { $client->openAttachment($fetched,$remote,maxBytes:5); self::fail('Oversized attachment accepted'); }
+        catch (\RuntimeException $error) { self::assertSame('Attachment exceeds byte limit.',$error->getMessage()); }
+        $stream = $client->openAttachment($fetched,$remote,maxBytes:6);
+        try { self::assertSame("\x00\xff1234",stream_get_contents($stream)); } finally { fclose($stream); }
+        self::assertNotContains('\\Seen',$client->get($saved->id())->flags());
+    }
+    public function testFailedAppendDoesNotSetAutomaticSourceFlags(): void
+    {
+        $manual = $this->client();
+        $source = $manual->saveDraft(new Email(from:'other@example.org',to:'me@example.org'));
+        $inner = new ImapTransport('localhost','test','test-secret',1993);
+        $transport = $this->createMock(Transport::class);
+        foreach (['select','search','metadata','part'] as $method) {
+            $transport->method($method)->willReturnCallback($inner->$method(...));
+        }
+        $transport->expects(self::once())->method('append')->willThrowException(new \RuntimeException('APPEND rejected'));
+        $transport->expects(self::never())->method('flag');
+        $client = new MailClient($transport,hash('sha256','localhost:1993:test'),from:'me@example.org');
+        try { $client->saveDraft($client->reply($source,'Reply')); self::fail('Expected APPEND failure'); }
+        catch (\RuntimeException $error) { self::assertSame('APPEND rejected',$error->getMessage()); }
+        $flags = $manual->get($source->id())->flags();
+        self::assertNotContains('\\Answered',$flags); self::assertNotContains('\\Seen',$flags);
     }
 }

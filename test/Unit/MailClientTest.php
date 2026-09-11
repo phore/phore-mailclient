@@ -34,6 +34,21 @@ final class MailClientTest extends TestCase
         $client = new MailClient($transport,'account');
         $this->expectException(\InvalidArgumentException::class); $client->saveDraft(new Email());
     }
+    public function testDraftFolderFailureHasOperationAndFolderContext(): void
+    {
+        $cause = new \RuntimeException('Empty response');
+        $transport = $this->createMock(Transport::class);
+        $transport->expects(self::once())->method('select')->with('Drafts')->willThrowException($cause);
+        $client = new MailClient($transport,'account',from:'me@example.org');
+
+        try {
+            $client->saveDraft(new Email(to:'recipient@example.org',subject:'Test'));
+            self::fail('Draft folder failure was not propagated.');
+        } catch (\RuntimeException $error) {
+            self::assertSame('Unable to access configured drafts folder "Drafts" while saving draft.',$error->getMessage());
+            self::assertSame($cause,$error->getPrevious());
+        }
+    }
     public function testUnsavedFlagTargetFailsBeforeIo(): void
     {
         $transport = $this->createMock(Transport::class); $transport->expects(self::never())->method('select');

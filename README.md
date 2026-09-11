@@ -6,6 +6,22 @@ Webklex 6.2.0's pure PHP transport; `ext-imap` is not used.
 
 ## Mailbox configuration from a file
 
+The [complete JSON reference tree](mailbox-config.reference.json) documents every
+field, its type, required status, default (where defined), example and meaning.
+It also documents the credential exclusivity rule. This is documentation, not a
+loadable mailbox file: actual mailbox files use the flat structure below and
+contain exactly one credential option.
+
+For maintainers: `MailboxConfig` keeps the supported fields, defaults and reference
+metadata in one definition. Add new settings there with documentation and an
+example; the generated tree includes them automatically. `composer install`,
+`composer update` and `composer dump-autoload` regenerate the reference through
+`post-autoload-dump` (unless scripts are disabled). Run
+`composer generate-config-reference` after editing settings and commit the result.
+`composer check-config-reference` and `composer test` detect stale output; CI also
+checks the committed file against regenerated output. Runtime behavior and tests
+for a new setting must still be implemented.
+
 Store one mailbox in a local `mailbox.json`. JSON works with the existing PHP
 requirements, without an additional parser dependency:
 

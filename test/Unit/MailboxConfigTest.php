@@ -26,6 +26,36 @@ final class MailboxConfigTest extends TestCase
     private function settings(): array
     { return ['host'=>'imap.example.org', 'username'=>'me@example.org', 'passwordFromSecretName'=>$this->secret]; }
 
+    public function testDocumentedReferenceMatchesGeneratedFileAndBothExamplesLoad(): void
+    {
+        $reference = MailboxConfig::reference();
+        $path = dirname(__DIR__, 2) . '/mailbox-config.reference.json';
+        self::assertSame($reference, json_decode(file_get_contents($path), true, 512, JSON_THROW_ON_ERROR));
+        $examples = [];
+        foreach ($reference['fields'] as $name => $field) {
+            self::assertNotEmpty($field['description'], $name);
+            self::assertArrayHasKey('type', $field, $name);
+            self::assertArrayHasKey('required', $field, $name);
+            self::assertArrayHasKey('example', $field, $name);
+            $examples[$name] = $field['example'];
+        }
+        foreach (['password', 'passwordFromSecretName'] as $omit) {
+            $settings = $examples;
+            unset($settings[$omit]);
+            $config = MailboxConfig::fromArray($settings);
+            self::assertSame('imap.example.org', $config->host);
+            self::assertSame('manual', $config->mode);
+        }
+        $settings = $examples;
+        unset($settings['password']);
+        foreach ($reference['fields'] as $name => $field) {
+            if (array_key_exists('default', $field)) { unset($settings[$name]); }
+        }
+        $config = MailboxConfig::fromArray($settings);
+        foreach ($reference['fields'] as $name => $field) {
+            if (array_key_exists('default', $field)) { self::assertSame($field['default'], $config->$name, $name); }
+        }
+    }
     public function testLoadDoesNotRequireSecretAndUsesConnectionDefaults(): void
     {
         $path = $this->directory . '/mailbox.json';

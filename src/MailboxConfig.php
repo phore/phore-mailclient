@@ -10,7 +10,33 @@ use Phore\MailClient\Internal\SecretResolver;
 /** Connection settings with either a literal password or a named secret reference. */
 final readonly class MailboxConfig
 {
+    // Add every new file setting here, including its documentation and example.
+    // The loader and generated JSON reference both use this definition.
+    private const FIELDS = [
+        'host' => ['type'=>'string', 'required'=>true, 'description'=>'IMAP hostname without a URL scheme. Implicit TLS and certificate verification are always enabled.', 'example'=>'imap.example.org'],
+        'username' => ['type'=>'string', 'required'=>true, 'description'=>'Nonempty IMAP login name, independent of the optional From identity.', 'example'=>'support@example.org'],
+        'password' => ['type'=>'string', 'required'=>false, 'description'=>'Literal nonempty password, used exactly as supplied. Specify exactly one of password or passwordFromSecretName. The file contains plaintext when using this option.', 'example'=>'example-literal-password'],
+        'passwordFromSecretName' => ['type'=>'string', 'required'=>false, 'description'=>'Load the password by this name: process environment first; only an unset variable falls back to /var/run/secrets/<name>. Empty values fail. Names start with a letter or underscore and contain only letters, digits, underscores, dots or hyphens. One trailing LF or CRLF is removed from file contents. Mutually exclusive with password.', 'example'=>'SUPPORT_MAIL_PASSWORD'],
+        'port' => ['type'=>'integer', 'required'=>false, 'default'=>993, 'minimum'=>1, 'maximum'=>65535, 'description'=>'IMAP implicit-TLS port.', 'example'=>993],
+        'draftsFolder' => ['type'=>'string', 'required'=>false, 'default'=>'Drafts', 'description'=>'Exact nonempty server folder name used for storing drafts.', 'example'=>'Drafts'],
+        'trashFolder' => ['type'=>'string', 'required'=>false, 'default'=>'Trash', 'description'=>'Exact nonempty server trash folder name. Moving requires native IMAP MOVE and UIDPLUS.', 'example'=>'Trash'],
+        'from' => ['type'=>['string', 'null'], 'required'=>false, 'default'=>null, 'description'=>'Default author address, optionally with a display name. Null leaves the identity unspecified; an explicit message identity takes precedence.', 'example'=>'Support <support@example.org>'],
+        'mode' => ['type'=>'string', 'required'=>false, 'default'=>'automatic', 'enum'=>['automatic', 'manual'], 'description'=>'Automatic mode enables automatic Seen and source Answered/Forwarded flags. Manual mode requires explicit flag actions.', 'example'=>'manual'],
+    ];
     private ?\SensitiveParameterValue $password;
+
+    /** Machine-readable documentation; this is a reference tree, not a mailbox config. */
+    public static function reference(): array
+    {
+        return [
+            'description'=>'Mailbox configuration reference. Use field examples to build a flat config object; do not pass this reference tree to fromFile().',
+            'format'=>'JSON; fromArray() also accepts settings from an application parser.',
+            'credentialRule'=>'Exactly one of password or passwordFromSecretName must be present and nonempty. Both, neither, and null credentials are rejected.',
+            'unknownFields'=>'Rejected.',
+            'fields'=>self::FIELDS,
+        ];
+    }
+
 
     private function __construct(
         public string $host,
@@ -39,7 +65,7 @@ final readonly class MailboxConfig
     /** Accept the same settings from an application's own config parser. */
     public static function fromArray(#[\SensitiveParameter] array $data): self
     {
-        if (array_diff(array_keys($data), ['host','username','password','passwordFromSecretName','port','draftsFolder','trashFolder','from','mode']) !== []) {
+        if (array_diff(array_keys($data), array_keys(self::FIELDS)) !== []) {
             throw new InvalidArgumentException('Unknown mailbox setting.');
         }
         foreach (['host','username'] as $key) {
@@ -50,7 +76,7 @@ final readonly class MailboxConfig
         if ($hasPassword === $hasReference) { throw new InvalidArgumentException('Specify exactly one of password or passwordFromSecretName.'); }
         $credentialKey = $hasPassword ? 'password' : 'passwordFromSecretName';
         if (!is_string($data[$credentialKey]) || $data[$credentialKey] === '') { throw new InvalidArgumentException('Password or secret name must be a nonempty string.'); }
-        $data += ['password'=>null, 'passwordFromSecretName'=>null, 'port'=>993, 'draftsFolder'=>'Drafts', 'trashFolder'=>'Trash', 'from'=>null, 'mode'=>MailClient::MODE_AUTOMATIC];
+        $data += array_map(static fn(array $field): mixed => $field['default'] ?? null, self::FIELDS);
         foreach (['host','username','draftsFolder','trashFolder','mode'] as $key) {
             if (!is_string($data[$key]) || $data[$key] === '') { throw new InvalidArgumentException('Invalid mailbox setting: ' . $key . '.'); }
             Headers::validate($data[$key]);

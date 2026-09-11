@@ -4,9 +4,21 @@ declare(strict_types=1);
 
 use Phore\MailClient\EmailAddress;
 use Phore\MailClient\MailClient;
+use Phore\MailClient\MailboxConfig;
 
 // Executable API example.
 require_once dirname(__DIR__, 2) . '/vendor/autoload.php';
+
+// Optional: MAIL_CONFIG_FILE=/path/to/mailbox.json (format documented in README).
+// The file contains passwordSecret, never the password itself. Loading is offline;
+// connect() resolves that name from ENV, then /var/run/secrets/<name>, and uses TLS.
+// File settings replace the MAIL_IMAP_*, MAIL_FROM_* and MAIL_MODE options below.
+$configFile = getenv('MAIL_CONFIG_FILE');
+if ($configFile !== false && $configFile !== '') {
+    return MailboxConfig::fromFile($configFile)->connect(
+        messageDefaults: require __DIR__ . '/create-message-defaults.php',
+    );
+}
 
 $env = static function (string $name, ?string $default = null): string {
     $value = getenv($name);

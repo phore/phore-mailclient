@@ -4,6 +4,64 @@ PHP 8.5+ IMAP library with immutable `Email` content and explicit server operati
 Install with `composer require phore/mail-client`. Requires `phore/markdown` and
 Webklex 6.2.0's pure PHP transport; `ext-imap` is not used.
 
+## Mailbox configuration from a file
+
+Store one mailbox in a local `mailbox.json`. JSON works with the existing PHP
+requirements, without an additional parser dependency:
+
+```json
+{
+  "host": "imap.example.org",
+  "username": "support@example.org",
+  "passwordSecret": "SUPPORT_MAIL_PASSWORD",
+  "from": "Support <support@example.org>",
+  "mode": "manual"
+}
+```
+
+```php
+use Phore\MailClient\MailboxConfig;
+
+$config = MailboxConfig::fromFile('/etc/my-app/mailbox.json'); // offline validation
+$client = $config->connect(); // resolve password and connect with verified TLS
+```
+
+Provide `SUPPORT_MAIL_PASSWORD` in the process environment or mount a file named
+`/var/run/secrets/SUPPORT_MAIL_PASSWORD`. The configuration stores only the name.
+The environment takes precedence; only an **unset** variable falls back to the
+file. An empty variable or file raises an exception. One trailing LF or CRLF is
+removed from file values; all other whitespace and environment values are preserved.
+Missing/unreadable secrets fail before any connection. Passwords are resolved anew
+on every `connect()` and are never cached in the config object.
+
+| Setting | Required / default |
+|---|---|
+| `host` | Required, IMAP hostname without a URL scheme |
+| `username` | Required, nonempty login name |
+| `passwordSecret` | Required; name beginning with a letter or underscore, followed by letters, digits, `_`, `-` or `.` |
+| `port` | Integer, 1–65535; defaults to `993` |
+| `draftsFolder` / `trashFolder` | Exact nonempty names; default `Drafts` / `Trash` |
+| `from` | Optional address string, default `null` |
+| `mode` | `automatic` (default, same as `MailClient::connect`) or `manual` |
+
+Unknown fields, inline `password` values, invalid types and secret names containing
+paths are rejected. Config files cannot disable TLS or certificate verification.
+The example explicitly uses `manual` to avoid automatic flag changes.
+
+For other secret mount locations, use
+`$config->connect(secretsDirectory: '/run/secrets')`. This is an application option,
+not a path supplied by the config file. Mounted secret-file symlinks are supported.
+For existing YAML-based applications, pass your parser's associative array to
+`MailboxConfig::fromArray($settings)`; `fromFile()` itself accepts JSON only.
+The config's properties are read-only. Existing template/signature objects can be
+passed through `$config->connect(messageDefaults: $defaults)`; they are not stored
+in the file. Direct `MailClient::connect(...)` remains available.
+
+The [connection example](examples/api/connect-mail-client.php) supports
+`MAIL_CONFIG_FILE=/etc/my-app/mailbox.json`; when set, the file supplies all mailbox
+settings instead of the example's individual `MAIL_IMAP_*`, `MAIL_FROM_*` and
+`MAIL_MODE` variables.
+
 ## Automatic and manual flags
 
 `MailClient::connect(...)` defaults to `mode: 'automatic'`. Use `mode: 'manual'`

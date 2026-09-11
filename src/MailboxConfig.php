@@ -7,19 +7,22 @@ use RuntimeException;
 use Phore\MailClient\Internal\Headers;
 use Phore\MailClient\Internal\SecretResolver;
 
-/** Connection settings only; resolved passwords are never stored in this object. */
+/** Connection settings with either a literal password or a named secret reference. */
 final readonly class MailboxConfig
 {
+    private ?\SensitiveParameterValue $password;
+
     private function __construct(
         public string $host,
         public string $username,
-        public string $passwordSecret,
+        public ?string $passwordFromSecretName,
+        #[\SensitiveParameter] ?string $password,
         public int $port,
         public string $draftsFolder,
         public string $trashFolder,
         public ?string $from,
         public string $mode,
-    ) {}
+    ) { $this->password = $password === null ? null : new \SensitiveParameterValue($password); }
 
     /** Load one mailbox from a local JSON object, without resolving secrets or connecting. */
     public static function fromFile(string $path): self
@@ -36,13 +39,18 @@ final readonly class MailboxConfig
     /** Accept the same settings from an application's own config parser. */
     public static function fromArray(#[\SensitiveParameter] array $data): self
     {
-        if (array_diff(array_keys($data), ['host','username','passwordSecret','port','draftsFolder','trashFolder','from','mode']) !== []) {
-            throw new InvalidArgumentException('Unknown mailbox setting; use passwordSecret instead of an inline password.');
+        if (array_diff(array_keys($data), ['host','username','password','passwordFromSecretName','port','draftsFolder','trashFolder','from','mode']) !== []) {
+            throw new InvalidArgumentException('Unknown mailbox setting.');
         }
-        foreach (['host','username','passwordSecret'] as $key) {
+        foreach (['host','username'] as $key) {
             if (!isset($data[$key]) || !is_string($data[$key]) || $data[$key] === '') { throw new InvalidArgumentException('Missing or invalid mailbox setting: ' . $key . '.'); }
         }
-        $data += ['port'=>993, 'draftsFolder'=>'Drafts', 'trashFolder'=>'Trash', 'from'=>null, 'mode'=>MailClient::MODE_AUTOMATIC];
+        $hasPassword = array_key_exists('password', $data);
+        $hasReference = array_key_exists('passwordFromSecretName', $data);
+        if ($hasPassword === $hasReference) { throw new InvalidArgumentException('Specify exactly one of password or passwordFromSecretName.'); }
+        $credentialKey = $hasPassword ? 'password' : 'passwordFromSecretName';
+        if (!is_string($data[$credentialKey]) || $data[$credentialKey] === '') { throw new InvalidArgumentException('Password or secret name must be a nonempty string.'); }
+        $data += ['password'=>null, 'passwordFromSecretName'=>null, 'port'=>993, 'draftsFolder'=>'Drafts', 'trashFolder'=>'Trash', 'from'=>null, 'mode'=>MailClient::MODE_AUTOMATIC];
         foreach (['host','username','draftsFolder','trashFolder','mode'] as $key) {
             if (!is_string($data[$key]) || $data[$key] === '') { throw new InvalidArgumentException('Invalid mailbox setting: ' . $key . '.'); }
             Headers::validate($data[$key]);
@@ -55,8 +63,8 @@ final readonly class MailboxConfig
             if (!is_string($data['from'])) { throw new InvalidArgumentException('Mailbox from must be an address string or null.'); }
             EmailAddress::parse($data['from']);
         }
-        SecretResolver::validateName($data['passwordSecret']);
-        return new self($data['host'], $data['username'], $data['passwordSecret'], $data['port'], $data['draftsFolder'], $data['trashFolder'], $data['from'], $data['mode']);
+        if ($hasReference) { SecretResolver::validateName($data['passwordFromSecretName']); }
+        return new self($data['host'], $data['username'], $data['passwordFromSecretName'], $data['password'], $data['port'], $data['draftsFolder'], $data['trashFolder'], $data['from'], $data['mode']);
     }
 
     /** Resolve the secret afresh for each connection. TLS remains certificate-verified. */
@@ -64,7 +72,7 @@ final readonly class MailboxConfig
     {
         return MailClient::connect(
             host: $this->host, username: $this->username,
-            password: SecretResolver::resolve($this->passwordSecret, $secretsDirectory),
+            password: $this->password !== null ? $this->password->getValue() : SecretResolver::resolve($this->passwordFromSecretName, $secretsDirectory),
             port: $this->port, draftsFolder: $this->draftsFolder, trashFolder: $this->trashFolder,
             from: $this->from, messageDefaults: $messageDefaults, mode: $this->mode,
         );

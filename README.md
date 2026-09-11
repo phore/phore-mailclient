@@ -13,7 +13,7 @@ requirements, without an additional parser dependency:
 {
   "host": "imap.example.org",
   "username": "support@example.org",
-  "passwordSecret": "SUPPORT_MAIL_PASSWORD",
+  "passwordFromSecretName": "SUPPORT_MAIL_PASSWORD",
   "from": "Support <support@example.org>",
   "mode": "manual"
 }
@@ -27,25 +27,43 @@ $client = $config->connect(); // resolve password and connect with verified TLS
 ```
 
 Provide `SUPPORT_MAIL_PASSWORD` in the process environment or mount a file named
-`/var/run/secrets/SUPPORT_MAIL_PASSWORD`. The configuration stores only the name.
+`/var/run/secrets/SUPPORT_MAIL_PASSWORD`. With `passwordFromSecretName`, the configuration stores only the name.
 The environment takes precedence; only an **unset** variable falls back to the
 file. An empty variable or file raises an exception. One trailing LF or CRLF is
 removed from file values; all other whitespace and environment values are preserved.
-Missing/unreadable secrets fail before any connection. Passwords are resolved anew
+Missing/unreadable secrets fail before any connection. Named secrets are resolved anew
 on every `connect()` and are never cached in the config object.
+
+Alternatively, supply the literal password directly:
+
+```json
+{
+  "host": "imap.example.org",
+  "username": "support@example.org",
+  "password": "example-literal-password",
+  "mode": "manual"
+}
+```
+
+`password` is used exactly as supplied, without trimming or environment lookup.
+Literal passwords are held privately in PHP's `SensitiveParameterValue`, which
+redacts ordinary object dumps and prevents serialization of that credential.
+This does not encrypt the original config file: it contains the supplied plaintext.
 
 | Setting | Required / default |
 |---|---|
 | `host` | Required, IMAP hostname without a URL scheme |
 | `username` | Required, nonempty login name |
-| `passwordSecret` | Required; name beginning with a letter or underscore, followed by letters, digits, `_`, `-` or `.` |
+| `password` | Literal nonempty password string; mutually exclusive with `passwordFromSecretName` |
+| `passwordFromSecretName` | Alternative to `password`; name beginning with a letter or underscore, followed by letters, digits, `_`, `-` or `.` |
 | `port` | Integer, 1–65535; defaults to `993` |
 | `draftsFolder` / `trashFolder` | Exact nonempty names; default `Drafts` / `Trash` |
 | `from` | Optional address string, default `null` |
 | `mode` | `automatic` (default, same as `MailClient::connect`) or `manual` |
 
-Unknown fields, inline `password` values, invalid types and secret names containing
-paths are rejected. Config files cannot disable TLS or certificate verification.
+Exactly one of `password` or `passwordFromSecretName` must be present. Both, neither,
+null/empty credentials, unknown fields, invalid types and path-like secret names
+are rejected. The previous draft field `passwordSecret` is no longer accepted. Config files cannot disable TLS or certificate verification.
 The example explicitly uses `manual` to avoid automatic flag changes.
 
 For other secret mount locations, use

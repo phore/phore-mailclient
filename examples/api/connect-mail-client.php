@@ -10,8 +10,8 @@ use Phore\MailClient\MailboxConfig;
 require_once dirname(__DIR__, 2) . '/vendor/autoload.php';
 
 // Optional: MAIL_CONFIG_FILE=/path/to/mailbox.json (format documented in README).
-// The file contains passwordSecret, never the password itself. Loading is offline;
-// connect() resolves that name from ENV, then /var/run/secrets/<name>, and uses TLS.
+// Use passwordFromSecretName to load from ENV, then /var/run/secrets/<name>,
+// or password for a literal value. Loading is offline; connect() uses verified TLS.
 // File settings replace the MAIL_IMAP_*, MAIL_FROM_* and MAIL_MODE options below.
 $configFile = getenv('MAIL_CONFIG_FILE');
 if ($configFile !== false && $configFile !== '') {

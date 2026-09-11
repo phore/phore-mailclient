@@ -24,7 +24,7 @@ final class MailboxConfigTest extends TestCase
         rmdir($this->directory);
     }
     private function settings(): array
-    { return ['host'=>'imap.example.org', 'username'=>'me@example.org', 'passwordSecret'=>$this->secret]; }
+    { return ['host'=>'imap.example.org', 'username'=>'me@example.org', 'passwordFromSecretName'=>$this->secret]; }
 
     public function testLoadDoesNotRequireSecretAndUsesConnectionDefaults(): void
     {
@@ -34,12 +34,41 @@ final class MailboxConfigTest extends TestCase
         self::assertEquals(MailboxConfig::fromArray($this->settings()), $config);
         self::assertSame('imap.example.org', $config->host);
         self::assertSame('me@example.org', $config->username);
-        self::assertSame($this->secret, $config->passwordSecret);
+        self::assertSame($this->secret, $config->passwordFromSecretName);
         self::assertSame(993, $config->port);
         self::assertSame('Drafts', $config->draftsFolder);
         self::assertSame('Trash', $config->trashFolder);
         self::assertSame('automatic', $config->mode);
         self::assertNull($config->from);
+    }
+    public function testLiteralPasswordLoadsWithoutSecretLookupAndIsRedacted(): void
+    {
+        $settings = $this->settings();
+        unset($settings['passwordFromSecretName']);
+        $settings['password'] = ' literal-password-value ';
+        $path = $this->directory . '/mailbox.json';
+        file_put_contents($path, json_encode($settings, JSON_THROW_ON_ERROR));
+        $config = MailboxConfig::fromFile($path);
+        self::assertNull($config->passwordFromSecretName);
+        self::assertStringNotContainsString('literal-password-value', print_r($config, true));
+        ob_start();
+        var_dump($config);
+        $dump = ob_get_clean();
+        self::assertStringNotContainsString('literal-password-value', $dump);
+        $this->expectException(\Exception::class);
+        serialize($config);
+    }
+    #[DataProvider('invalidCredentials')]
+    public function testExactlyOneNonemptyCredentialIsRequired(array $credentials): void
+    {
+        $settings = $this->settings();
+        unset($settings['passwordFromSecretName']);
+        $this->expectException(\InvalidArgumentException::class);
+        MailboxConfig::fromArray($settings + $credentials);
+    }
+    public static function invalidCredentials(): iterable
+    {
+        foreach ([[], ['password'=>null], ['password'=>''], ['password'=>42], ['password'=>false], ['password'=>[]], ['passwordFromSecretName'=>null], ['password'=>'literal', 'passwordFromSecretName'=>null], ['password'=>null, 'passwordFromSecretName'=>'NAME'], ['passwordSecret'=>'OLD_NAME']] as $credentials) { yield [$credentials]; }
     }
     public function testExplicitOptionsAreRetained(): void
     {
@@ -58,7 +87,7 @@ final class MailboxConfigTest extends TestCase
     }
     public static function invalidSettings(): iterable
     {
-        foreach ([['password'=>'do-not-store'], ['unknown'=>true], ['host'=>''], ['host'=>"host\n"], ['host'=>'ssl://host'], ['username'=>null], ['port'=>'993'], ['port'=>0], ['port'=>65536], ['port'=>true], ['draftsFolder'=>''], ['trashFolder'=>[]], ['mode'=>'typo'], ['from'=>42], ['from'=>'invalid'], ['passwordSecret'=>''], ['passwordSecret'=>'../outside'], ['passwordSecret'=>'/absolute'], ['passwordSecret'=>'a/b'], ['passwordSecret'=>"BAD\n"], ['passwordSecret'=>'a\\b']] as $changes) { yield [$changes]; }
+        foreach ([['password'=>'do-not-store'], ['unknown'=>true], ['host'=>''], ['host'=>"host\n"], ['host'=>'ssl://host'], ['username'=>null], ['port'=>'993'], ['port'=>0], ['port'=>65536], ['port'=>true], ['draftsFolder'=>''], ['trashFolder'=>[]], ['mode'=>'typo'], ['from'=>42], ['from'=>'invalid'], ['passwordFromSecretName'=>''], ['passwordFromSecretName'=>'../outside'], ['passwordFromSecretName'=>'/absolute'], ['passwordFromSecretName'=>'a/b'], ['passwordFromSecretName'=>"BAD\n"], ['passwordFromSecretName'=>'a\\b']] as $changes) { yield [$changes]; }
     }
     #[DataProvider('invalidJson')]
     public function testInvalidFilesAreRejected(string $json): void
@@ -125,7 +154,7 @@ final class MailboxConfigTest extends TestCase
     {
         putenv($this->secret . '=private-password-value');
         $config = MailboxConfig::fromArray($this->settings());
-        SecretResolver::resolve($config->passwordSecret, $this->directory);
+        SecretResolver::resolve($config->passwordFromSecretName, $this->directory);
         self::assertStringNotContainsString('private-password-value', serialize($config));
         self::assertStringNotContainsString('private-password-value', print_r($config, true));
     }

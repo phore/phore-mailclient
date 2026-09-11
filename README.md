@@ -72,10 +72,21 @@ runs integration tests against the disposable local Dovecot created by
 address example, MIME round trips, retries/conflicts, cursors, automatic/manual flags,
 trash and TLS hostname rejection. No personal mailbox is used by these tests.
 
-The separate **WEB.DE connection** workflow uses GitHub secrets `EMAIL` and
-`EMAIL_PASSWD`. It tests only verified TLS and authentication; it never selects a
-mailbox or reads/writes messages. It runs on changes to its workflow/test on the PR
-branch and main, and supports manual dispatch once available on the default branch.
+The separate **WEB.DE read-only integration** workflow uses GitHub secrets `EMAIL`
+and `EMAIL_PASSWD`. It verifies TLS/authentication, opens INBOX with EXAMINE, searches
+UIDs and reads at most the three newest messages through `get()` and cursor pagination.
+It checks manual mode, per-action Seen suppression and unchanged persistent flags.
+Attachment descriptors are checked without downloading attachment content. A test
+transport guard rejects all write operations. No mail content, addresses, identifiers,
+server responses or exception traces are logged or uploaded as artifacts. An empty
+INBOX passes connection/cursor checks and explicitly skips message-dependent checks.
+Concurrent deletion or flag changes by another client can fail the live assertions.
+
+The same read-only probe is exercised against seeded Dovecot in normal CI, which also
+covers attachment byte limits and failed APPEND without automatic source flags.
+The provider workflow runs on relevant source/dependency/test changes on main and the
+`test/expand-imap-provider-coverage` branch, and supports manual dispatch. It is separate
+from ordinary PR tests and never exposes secrets to fork pull requests.
 WEB.DE must have IMAP access enabled; two-factor accounts may need an app password.
 See [WEB.DE's server settings](https://hilfe.web.de/pop-imap/imap/imap-serverdaten.html).
 

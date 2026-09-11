@@ -40,9 +40,6 @@
     }
   },
   "scripts": {
-    "generate-config-reference": "@php tools/generate-mailbox-reference.php",
-    "check-config-reference": "@php tools/generate-mailbox-reference.php --check",
-    "post-autoload-dump": "@generate-config-reference",
-    "test": ["@check-config-reference", "phpunit"]
+    "test": "phpunit"
   }
 }

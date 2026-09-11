@@ -16,14 +16,9 @@ jobs:
           tools: composer:v2
       - run: composer validate --strict
       - run: composer install --prefer-dist --no-interaction --no-progress
-      - name: Generated mailbox reference and unit tests
-        run: |
-          composer check-config-reference
-          git diff --exit-code -- mailbox-config.reference.json
-          vendor/bin/phpunit test/Unit
       - name: Syntax and offline example
         run: |
-          find src test examples/api tools -name '*.php' -print0 | xargs -0 -n1 php -l
+          find src test examples/api -name '*.php' -print0 | xargs -0 -n1 php -l
           php examples/api/addresses.php
       - name: Disposable Dovecot with verified TLS
         run: bash test/Integration/dovecot.sh

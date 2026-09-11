@@ -1,0 +1,76 @@
+{
+    "description": "Mailbox configuration reference. Use field examples to build a flat config object; do not pass this reference tree to fromFile().",
+    "format": "JSON; fromArray() also accepts settings from an application parser.",
+    "credentialRule": "Exactly one of password or passwordFromSecretName must be present and nonempty. Both, neither, and null credentials are rejected.",
+    "unknownFields": "Rejected.",
+    "fields": {
+        "host": {
+            "type": "string",
+            "required": true,
+            "description": "IMAP hostname without a URL scheme. Implicit TLS and certificate verification are always enabled.",
+            "example": "imap.example.org"
+        },
+        "username": {
+            "type": "string",
+            "required": true,
+            "description": "Nonempty IMAP login name, independent of the optional From identity.",
+            "example": "support@example.org"
+        },
+        "password": {
+            "type": "string",
+            "required": false,
+            "description": "Literal nonempty password, used exactly as supplied. Specify exactly one of password or passwordFromSecretName. The file contains plaintext when using this option.",
+            "example": "example-literal-password"
+        },
+        "passwordFromSecretName": {
+            "type": "string",
+            "required": false,
+            "description": "Load the password by this name: process environment first; only an unset variable falls back to /var/run/secrets/<name>. Empty values fail. Names start with a letter or underscore and contain only letters, digits, underscores, dots or hyphens. One trailing LF or CRLF is removed from file contents. Mutually exclusive with password.",
+            "example": "SUPPORT_MAIL_PASSWORD"
+        },
+        "port": {
+            "type": "integer",
+            "required": false,
+            "default": 993,
+            "minimum": 1,
+            "maximum": 65535,
+            "description": "IMAP implicit-TLS port.",
+            "example": 993
+        },
+        "draftsFolder": {
+            "type": "string",
+            "required": false,
+            "default": "Drafts",
+            "description": "Exact nonempty server folder name used for storing drafts.",
+            "example": "Drafts"
+        },
+        "trashFolder": {
+            "type": "string",
+            "required": false,
+            "default": "Trash",
+            "description": "Exact nonempty server trash folder name. Moving requires native IMAP MOVE and UIDPLUS.",
+            "example": "Trash"
+        },
+        "from": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "required": false,
+            "default": null,
+            "description": "Default author address, optionally with a display name. Null leaves the identity unspecified; an explicit message identity takes precedence.",
+            "example": "Support <support@example.org>"
+        },
+        "mode": {
+            "type": "string",
+            "required": false,
+            "default": "automatic",
+            "enum": [
+                "automatic",
+                "manual"
+            ],
+            "description": "Automatic mode enables automatic Seen and source Answered/Forwarded flags. Manual mode requires explicit flag actions.",
+            "example": "manual"
+        }
+    }
+}

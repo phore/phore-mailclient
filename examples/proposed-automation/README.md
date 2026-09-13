@@ -19,12 +19,13 @@ Die weiteren Dateien beantworten jeweils eine zusätzliche Frage.
 | [03-incoming.php](03-incoming.php) | Wie trenne ich Prüfbedarf, B2B und Neukontakte? Ersetzt die Inbox-Regel. |
 | [04-outgoing.php](04-outgoing.php) | Wie lege ich Kontakte schon beim Ausgang an? Ergänzung; zwei alternative Sent-Regeln. |
 | [05-first-reply.php](05-first-reply.php) | Wie binde ich den Resolver ein und lerne Antwortaliase? Unabhängige Alternative. |
-| [06-metadata.php](06-metadata.php) | Wie pflege ich Klassifizierung und lese Historie? Vollständiger Attribut-Handler; trennt Kontakt, Thread, Nachricht und Mailbox. |
+| [06-metadata.php](06-metadata.php) | Wann sind contact/identity gesetzt, welche Aliase gehören dazu und wie wirkt classify? Vollständiger Attribut-Handler; trennt Kontakt, Thread, Nachricht und Mailbox. |
 | [07-sender-rule.php](07-sender-rule.php) | Wie bearbeite ich Formularnachrichten? Ergänzt die Regeln aus 03. |
 | [08-attributes.php](08-attributes.php) | Wie registriere oder pausiere ich Klassen-/Methodenregeln? Alternative Registrierung. |
 | [09-custom-storage.php](09-custom-storage.php) | Wie tausche ich ID-Erzeugung oder Speicher aus? Alternative Konstruktoren. |
 | [10-send-reply.php](10-send-reply.php) | Wie sende ich tatsächlich? Ersetzt Konstruktor und Formularregel. |
 | [11-manual-flags.php](11-manual-flags.php) | Wie stößt ein Thunderbird-Tag die nächste Bearbeitung an? Ergänzt 03. |
+| [12-contact-management.php](12-contact-management.php) | Wie ändere ich Kontaktname, Aliasnamen, Adressen und Hauptadresse? Eigenständige, bestätigte Verwaltungsaktion. |
 
 ## Gemeinsamer Kontext
 
@@ -88,6 +89,7 @@ geprüft. Fehler stoppen die Kette und lassen Arbeit offen. Die bestehende
 
 | Zugriff | Bedeutung |
 |---|---|
+| `$context->identity` | Zuordnungsergebnis für diese Mail: Status, Kontakt und Belege; kein Benutzerkonto |
 | `$context->contact` | Zugeordnete externe Person (Contact oder null), mit stabiler ID und Aliasadressen |
 | `$context->thread` | Gespräch dieser Mail; Nachrichten und Thread-Metadaten |
 | `$context->metadata` | Gespeicherte Zusatzwerte genau dieser Nachricht |
@@ -97,6 +99,9 @@ geprüft. Fehler stoppen die Kette und lassen Arbeit offen. Die bestehende
 
 Kontakt, Thread und Mailbox besitzen ebenfalls `metadata`. Überall liefert
 `get(key)` bei fehlendem Schlüssel null; `set(key, value)` speichert sofort.
+Metadaten sind reine Anwendungsdaten: Die Engine interpretiert weder `reviewed` noch
+andere Schlüssel. Nur eigene Filter/Individuallogik geben ihnen eine Bedeutung;
+`phore_processed` bleibt unabhängig davon die Verarbeitungssperre.
 Die Ebenen vererben oder kopieren keine Werte untereinander. Threads können mehrere
 Kontakte enthalten; eine Thread-Zuordnung beweist keine Identität. Beispiel 06 zeigt
 Registrierung, Zugriff und Ergebnis vollständig.

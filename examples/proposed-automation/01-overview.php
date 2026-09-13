@@ -21,7 +21,8 @@ $automation->onFolder(Folder::Inbox)->addAutomation(
 );
 
 // Erst hier: Sent indexieren, Identität auflösen, Eingänge verarbeiten und Cursor speichern.
-// Erfolg setzt phore_processed; normales Verschieben erhält diesen Status im Ziel.
+// phore_processed sperrt vorab ALLE Regeln und das Aliaslernen, auch in Sent.
+// Erfolg setzt dieses Keyword; Verschieben/Kopieren mit erhaltenem Keyword bleibt gesperrt.
 $report = $automation->run();
 
 // Beispieldaten → Ergebnis:

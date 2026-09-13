@@ -7,6 +7,7 @@
 | 2026-09-13 | dermatthes | §§ 2–7, § 9: Eine Client-Verbindung, geerbte Konfiguration, addAutomation, onInboxMessage/onSentMessage und Gesamtbeispiel |
 | 2026-09-13 | dermatthes | §§ 2–3, § 6: Resolver initialisieren/einbinden, Kontext anreichern, Folder-Enum, OnFolderAutomation, optionale automationId und active |
 | 2026-09-13 | dermatthes | § 9: Examples als aufbauende Lesereihe gekürzt, Einbindung und Varianten geklärt, Report-Vertragslücke benannt |
+| 2026-09-13 | dermatthes | §§ 3–6, § 8: Einheitliche Bearbeitet-Sperre, aktuelle Keyword-Bedingungen und explizite Wiederaufnahme |
 
 ## § 1 Status and scope
 
@@ -74,7 +75,7 @@ belongs to the shared store and its UserIdGenerator, not to handlers. A configur
 resolver instance is bound to one automation only; using it unbound for direct learning
 fails clearly. Custom strategies implement IdentityResolver with bind(MailClient,
 AutomationStorage): void and resolve(Email): IdentityResult. Binding occurs once;
-resolve performs incoming lookup/allowed learning before predicates and handlers.
+resolve performs incoming lookup/allowed learning before predicates and handlers, only for messages admitted by the processed gate.
 Outgoing contexts only look up recipients; creation remains an explicit outgoing action. ReplyIdentityResolver
 also retains learnAliasFromReply(Email) for explicit specialized use after binding.
 
@@ -92,26 +93,33 @@ are Inbox, Sent, Drafts, Trash and Junk; the client maps each to its actual name
 Strings are exact folder names. Special Inbox/Sent behavior follows the resolved
 folder identity even when selected by its string name. Missing mappings fail clearly,
 never fall back to guessed provider folders. Sent/Inbox configuration must be distinct.
-These selectors replace separate onInboxMessage/onSentMessage methods. onFlagAdded
-also accepts Folder|string and uses addAutomation. Predicates receive
+These selectors replace separate incoming/outgoing selectors. Keyword rules belong to
+this same folder chain; there is no separate flag-change event route. Predicates receive
 (Email, MailContext): bool; handlers receive (Email, MailContext): MailActions.
 Higher priority wins, ties use registration order. Only the first matching handler
-runs per event route. Duplicate IDs/incompatible signatures fail before writes.
+runs per eligible message in its current folder chain. Duplicate IDs/incompatible signatures fail before writes.
 Exceptions are failures, never a fall-through. Unmarked observed messages and deliberate
-marker resets are eligible; a folder event is not proof of new delivery.
+marker resets are eligible; a folder event is not proof of new delivery. [geändert]
 
-Before incoming predicates run, resolve a known From or learn identity from a verified
+First check the current phore_processed keyword. Marked messages skip identity learning,
+predicates, handlers and mail actions. For eligible incoming messages, resolve a known From or learn identity from a verified
 outgoing reply link. MailContext exposes user (?MailUser), users (AliasStore),
 history (MailHistoryStore), identity (IdentityResult), folder and direction.
 For outgoing mail, user is the already known sole external recipient, not ourselves;
 recipientUsers exposes each external recipient mapped to a user or null. For multiple
-recipients, user=null; applications must explicitly address each recipient.
+recipients, user=null; applications must explicitly address each recipient. [geändert]
 
 Class instances, invokable classes and attributed function callables are registered
 with addRules(object|callable). OnFolderAutomation(folder: Folder::Inbox),
-OnFolderAutomation(folder: Folder::Sent) and OnFlagAdded attributes compile to the same rules as builders. Trigger attributes on a class apply
+OnFolderAutomation(folder: Folder::Sent) attributes compile to the same rules as builders. Trigger attributes on a class apply
 to __invoke; method attributes apply to that method. Constructor dependencies are
-provided by the application. Do not register one rule through both mechanisms.
+provided by the application. Do not register one rule through both mechanisms. [geändert]
+
+OnFolderAutomation accepts optional flag: string, requiring that keyword to be present
+at evaluation time; it is combined with other filters using AND. The programmatic
+counterpart is MailContext::hasFlag(string $keyword): bool inside matches. Both use
+the current keyword set after the global processed gate, not a remembered flag-added
+event. Thus a keyword set while locked still matches after explicit unlocking. [geändert]
 
 The optional parameter is automationId (camelCase, consistent with the PHP API),
 not a user ID. Without it, class attributes/invokable handlers use the class short name;
@@ -131,40 +139,60 @@ the next run; no dynamic switching API is required for V1.
 
 ## § 4 Processed flags, moves and reprocessing
 
-Ordinary incoming/folder rules run only without phore_processed. A successful handler
-or no-match outcome sets that marker. Outgoing rules use phore_outgoing_processed
-so a Sent observation cannot suppress the ordinary incoming/folder workflow.
-Sent history indexing occurs even for already marked outgoing messages.
+phore_processed is the single global automation gate for every folder, including
+Inbox, Sent, Drafts, Trash and Junk, and every keyword-conditioned rule. If present,
+MailAutomation performs no identity learning, predicates, handlers or mail mutations
+for that message. A successful handler, MailActions::none() or no-match outcome sets
+this same keyword. There is no separate outgoing completion marker. [geändert]
 
-A manual move/copy with phore_processed retained does not restart ordinary processing.
-Removing it deliberately schedules the destination chain even for an old UID.
-Unmarked messages that fail remain pending in AutomationStateStore independently of
-the last cursor. Single-instance does not imply crash-safe retry guarantees.
+Synchronization may still read flags/locations and maintain cursors. Sent evidence is
+still read and indexed, including processed Sent messages, so an eligible incoming
+reply can be checked against them. This indexing does not create users or aliases
+or invoke business rules for the marked Sent message. [geändert]
 
-MailActions::create()->moveTo('Archive') targets an existing folder in the same account;
-normal completion leaves phore_processed on the destination for ordinary rules.
-Outgoing completion uses its outgoing marker. addFlag/removeFlag alter only that keyword.
-MailActions::none() is successful completion without business actions.
+The gate belongs to each concrete message copy, not its Message-ID. Moving/copying
+with phore_processed preserved keeps that destination locked in every folder.
+Unlocking one copy does not unlock another. If copying does not preserve keywords,
+the new unmarked copy is eligible; there is no cross-copy deduplication guarantee. [geändert]
 
-moveTo('Invoices', reprocess: true) moves, clears the ordinary processed marker at the
-destination and defers ordinary processing to the next run. It is terminal, cannot
-target the current folder, and suppresses the normal ordinary completion marker.
-Destination ordinary processing requires a registered folder. Deferred work never
-executes in the same run, regardless of folder scan order. Cross-folder routing loops
-are an application configuration error; avoid cyclic reprocess routes.
+Manual workflow: move to the intended folder, set the desired business keyword,
+then remove phore_processed. The next run evaluates the current destination and
+keywords, including old UIDs. Unlocking before moving is allowed but a concurrent
+run could process the old location; therefore unlock last. Pending and deferred work
+must recheck current location/flags before evaluation and before applying actions.
+If externally marked in the meantime, skip remaining work without clearing the lock.
+Single-instance processing does not promise atomicity with concurrent mail-client edits. [geändert]
 
-onFlagAdded is an explicitly separate event route that can act on processed mail;
-it does not implicitly reset the ordinary chain. Marker changes made by the engine
-do not themselves trigger business handlers. Route execution for a message is serial;
-the engine rechecks current flags/location before applying subsequent actions.
+MailActions::create()->moveTo('Archive') targets an existing same-account folder;
+normal completion leaves phore_processed on the destination, including for Sent rules.
+addFlag/removeFlag change business keywords. phore_processed is reserved for engine
+completion and explicit external unlocking; attempts to manipulate it through generic
+actions are rejected during action validation. A handler cannot bypass the gate. [geändert]
+
+moveTo('Invoices', reprocess: true) is the explicit automatic handoff: move, remove
+phore_processed at the destination and defer its folder chain until the next run.
+It is terminal, cannot target the current folder, and suppresses completion marking
+at the destination. The destination must have a registered chain. This also applies
+to handoffs to or from Sent. Deferred work never executes within the same run.
+Avoid cyclic handoff routes. [geändert]
+
+Keyword-conditioned rules participate in the same priority order and first-match
+selection as all other folder rules. Setting a business keyword on a processed
+message alone does nothing. Remove phore_processed to re-evaluate the CURRENT
+keyword set; a past flag-added event is neither needed nor replayed.
+Unmarked failures remain pending independently of the sync cursor. [geändert]
 
 Initial ordinary scans process ALL unmarked existing messages across every page.
 Initial Sent scans index all existing outgoing evidence, but baseline existing
 messages without running outgoing business rules by default, avoiding accidental
-bulk contact creation. The explicit run(processExistingOutgoing: true) option opts into those
+bulk contact creation. This baseline sets phore_processed on previously unmarked
+Sent messages without identity learning or handlers, so an explicit later removal
+can request processing. Already marked messages remain untouched. The explicit run(processExistingOutgoing: true) option opts into those
 rules during the initial Sent scan for unmarked backlog. Persist bootstrap phase across pages: PR #5's
-isInitialSync describes only the first page. Existing incoming backlog therefore can
-resolve against existing Sent evidence.
+isInitialSync describes only the first page. Removing phore_processed from a baselined
+Sent message explicitly enables its Sent chain on the next run. processExistingOutgoing
+never overrides an existing phore_processed lock. Existing incoming backlog therefore can
+resolve against existing Sent evidence. [geändert]
 
 UIDVALIDITY changes require explicit resynchronization; network failures never erase
 cursors. Preserved flags allow safe eligibility rebuilding under the chosen simple
@@ -184,12 +212,12 @@ Only messages sent from client's configured sender address qualify. Copied Sent 
 observable records, not independent SMTP-delivery proof; this design deliberately
 trusts the configured Sent folder. Drafts never count.
 
-The default is creation on the first qualifying reply. Sent observation alone stores
+The default is creation on the first qualifying, unprocessed reply. Sent observation alone stores
 recipient evidence but no MailUser. An outgoing rule may call
 context.createUserForRecipient(?string $email = null): MailUser to enable creation at
 the time outgoing mail is observed. This works only in outgoing context. With one
 external recipient the argument is optional; with several it is required and must
-match an actual recipient. Existing users are reused without overwriting their fields.
+match an actual recipient. Existing users are reused without overwriting their fields. [geändert]
 
 The incoming context's user=null is normal for unsolicited unknown mail. There is no
 automatic user creation merely for receiving, marking, moving or drafting a response.
@@ -198,12 +226,13 @@ the user then, otherwise wait until they answer that outgoing reply.
 
 | Scenario | Default | With outgoing creation rule |
 |---|---|---|
+| Message already has phore_processed | No business processing or identity learning | Same; Sent indexing remains allowed |
 | Unknown incoming, no reply link | user=null; no insertion | Same |
 | New outgoing to unknown recipient | Index pending recipient | Rule creates addressed recipient |
 | First verified reply | Create/find recipient user; learn From alias | Reuse user; learn From alias |
 | Known From, no reply headers | Return known user | Same |
 | Referenced outgoing no longer exists | No new user or alias | No new user or alias |
-| Outgoing baseline on first setup | Index only | Index only unless explicitly opted in |
+| Outgoing baseline on first setup | Index and mark processed, no user creation | Same unless explicitly opted into rules |
 
 The primary address is the originally addressed recipient; the reply's different
 From is an alias. Existing primary never changes automatically. If recipient name is
@@ -215,11 +244,12 @@ uses the fallback immediately. Later name changes never change the ID.
 
 ReplyIdentityResolver::learnAliasFromReply(Email $email): IdentityResult
 is the explicit learning method used by the default resolver's resolve operation.
-MailAutomation invokes its bound strategy before incoming predicates/handlers and assigns
+MailAutomation invokes its bound strategy only after the processed gate admits the
+incoming message, before predicates/handlers, and assigns
 IdentityResult to context.identity and its user to context.user. Handlers need no resolver call.
 It returns status (Unknown, KnownAddress, UserCreated, AliasAdded, Conflict,
 OutgoingMissing), nullable user, matched outgoing evidence and aliasAdded.
-needsReview() is true for Conflict and OutgoingMissing; isConflict() only for Conflict.
+needsReview() is true for Conflict and OutgoingMissing; isConflict() only for Conflict. [geändert]
 
 Inspect exact In-Reply-To IDs first. Resolve conflicting direct targets as Conflict;
 do not pick an older References entry to escape a conflict or a missing direct target.
@@ -313,8 +343,10 @@ Optional sending is explicit: configure a DraftSender adapter and return
 MailActions::sendReply(markdown). The engine prepares the draft and hands it to
 DraftSender::send(Email $draft): void. Without that adapter the action fails.
 The adapter owns transport and saving the final transmitted message in Sent, including
-any rewritten Message-ID; outgoing rules later observe it normally. This proposal
-does not introduce a concrete SMTP implementation or claim draft saving is sending.
+any rewritten Message-ID. The newly sent message is a separate message, initially
+without phore_processed; it does not inherit the source message's automation marker.
+Outgoing rules can process it on a later Sent synchronization. This proposal
+does not introduce a concrete SMTP implementation or claim draft saving is sending. [geändert]
 
 For automated form notifications, sender matching is a routing predicate, not proof
 of trust. Treat form content as untrusted. A draft can request human review; AI output
@@ -328,14 +360,14 @@ application excerpts. The entry shows one complete default routing case. Subsequ
 files build on introduced concepts, explicitly replace or extend known code, and show
 outgoing creation, resolver binding, metadata, forms, attributes and advanced adapters.
 Shared type names, prerequisites and design status appear once in the index. The PHP
-fragments intentionally omit file wrappers/imports and are not executable files. [geändert]
+fragments intentionally omit file wrappers/imports and are not executable files.
 
 Examples separate fixture outcomes from handler conditions, omit redundant type assertions
 and optional defaults, and show when changes occur immediately or on a later run.
 Metadata examples obtain stores from the actual MailContext; explicit SqliteStorage shows
 access outside handlers. External ID/storage/sender services have named application origins.
 The concrete public RunReport fields/error-access API remain unspecified and must be
-defined before runnable error-handling examples can be delivered. [neu]
+defined before runnable error-handling examples can be delivered.
 
 Future implementation needs side-effect-free reading, permanent keyword checks,
 general same-account moves, Sent lookup and identity/header access, SQLite tables,

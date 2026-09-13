@@ -1,12 +1,12 @@
-// Wie löst eine manuelle Thunderbird-Markierung die nächste Bearbeitung aus?
+// Wie gebe ich eine Nachricht für die manuelle B2B-Klassifizierung frei?
 // Ergänzt 03 vor run(), einschließlich dessen B2B-Zielregel.
-// OnFlagAdded ist ein eigener Ereignispfad und reagiert auch auf bereits processed-Mails.
-// Thunderbird-Tag muss genau das Keyword classify_b2b setzen; dessen Farbe ist Client-Konfiguration.
-#[OnFlagAdded(folder: 'Customers', flag: 'classify_b2b')]
+// In Thunderbird: nach Customers verschieben, classify_b2b setzen, ZULETZT phore_processed entfernen.
+// Ein bereits gesetztes classify_b2b genügt: die Regel prüft den aktuellen Zustand.
+// flag ist eine Keyword-Bedingung der normalen Ordnerkette, kein Flagänderungs-Ereignis.
+#[OnFolderAutomation(folder: 'Customers', flag: 'classify_b2b')]
 function classifyB2b(Email $mail, MailContext $context): MailActions
 {
     if ($context->identity->needsReview() || $context->user === null) {
-        // Manuelle Markierung allein erlaubt keine neue Benutzerzuordnung.
         return MailActions::create()->addFlag('phore_review');
     }
 
@@ -17,9 +17,13 @@ function classifyB2b(Email $mail, MailContext $context): MailActions
 }
 
 $automation->addRules('classifyB2b');
-// Funktionsname ist hier die abgeleitete ID; Ausführung durch das run() des umgebenden Ablaufs.
-// Beispiel: Annas processed-Mail in Customers erhält classify_b2b.
-// Erster Lauf → Anna dauerhaft b2b, Mail in B2B ohne classify_b2b/processed.
-// Nächster Lauf → B2B-Zielregel setzt b2b_ready und processed.
-// Unbekannter/konfliktbehafteter Absender → nur phore_review, keine Benutzeranlage.
-// Manuelles Verschieben ohne Entfernen von processed startet die normale Zielkette nicht neu.
+// Programmgesteuert lautet dieselbe Bedingung in matches: $context->hasFlag('classify_b2b').
+// Der globale processed-Check kommt von der Engine, nicht vom Handler.
+//
+// Beispiel: Annas markierte Mail erhält classify_b2b → noch keine Bearbeitung.
+// Erst nach Entfernen von phore_processed: nächster run() klassifiziert Anna,
+// entfernt classify_b2b und verschiebt nach B2B; dessen Kette wartet auf den Folgelauf.
+// Folgelauf → b2b_ready + phore_processed.
+// Unbekannter/konfliktbehafteter Absender → phore_review + phore_processed, keine Benutzeranlage.
+// Eine kopierte Mail bleibt mit erhaltenem phore_processed gesperrt; Freigabe gilt nur für diese Kopie.
+// Ohne Freigabe laufen weder dieser Handler noch andere Automatisierungen.

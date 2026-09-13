@@ -41,14 +41,14 @@ aus den jeweils benannten Anwendungs-Bootstraps; ihre Bibliotheksanbindung ist v
 Die Varianten setzen sich nicht gegenseitig automatisch voraus.
 
 `Email` steht für `Phore\MailClient\Email`. Die übrigen Automation-Typen liegen
-unter `Phore\MailClient\Automation`; `OnFolderAutomation` und `OnFlagAdded`
+unter `Phore\MailClient\Automation`; `OnFolderAutomation`
 unter dessen `Attributes`-Namespace. `PDO` ist der PHP-Standardtyp.
 Callbacks bekommen `Email` und `MailContext` von der Engine, nicht aus selbst erzeugten Testobjekten.
 
 ## Betriebsverhalten beim Ausprobieren
 
 Beim ersten Lauf werden alle unmarkierten Eingänge verarbeitet. Sent-Altbestand
-wird zunächst nur indexiert; `run(processExistingOutgoing: true)` aktiviert
+wird zunächst indexiert und mit `phore_processed` abgeschlossen, ohne Ausgangsregeln; `run(processExistingOutgoing: true)` aktiviert
 ausdrücklich auch seine Ausgangsregeln. Spätere Läufe verwenden denselben Speicher.
 Eine fehlgeschlagene Verarbeitung bleibt offen, auch wenn der Synchronisationscursor weiterläuft.
 
@@ -60,3 +60,9 @@ erfundenen Report-Methoden; dieser Vertrag muss vor ausführbaren Beispielen erg
 Single Instance ist vereinbart; Absturzsicherung und Doppelverarbeitungsgarantien
 sind nicht Teil dieses Entwurfs. Manuelle Migrationen, Identitätskonflikte und
 Reprocessing-Grenzen stehen im Vertrags-§§ 4–6, ID-Fallbacks in § 7.
+
+`phore_processed` sperrt sämtliche Automatisierungen einschließlich Sent-Regeln und
+Identitätslernen. Lesen/Indexieren von Sent-Belegen bleibt möglich. Zum Wiederaufnehmen
+zuerst verschieben und gewünschte Keywords setzen, dann `phore_processed` entfernen.
+Keyword-Regeln prüfen den aktuellen Zustand (Beispiel 11); Kopien bleiben bei erhaltenem
+Keyword gesperrt. `moveTo(..., reprocess: true)` gibt das Ziel erst für den nächsten Lauf frei.

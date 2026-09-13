@@ -2,7 +2,9 @@
 // Ergänzt 01 oder 03 vor run(); ohne diese Regel bleibt Anlage bei der ersten Antwort.
 // Sent wird vor Inbox verarbeitet. recipientUsers ordnet externe Empfängeradressen
 // vorhandenen Benutzern oder null zu; unsere eigene Adresse ist ausgeschlossen.
-// Sent-Altbestand wird beim ersten Lauf nur indexiert, diese Regel läuft für neue Beobachtungen.
+// Bereits phore_processed-markierte Ausgänge werden nur indexiert; diese Regeln bleiben gesperrt.
+// Sent-Altbestand wird beim ersten Lauf indexiert und als phore_processed abgeschlossen,
+// ohne Benutzeranlage; diese Regel läuft für neue unmarkierte Beobachtungen.
 $automation->onFolder(Folder::Sent)->addAutomation(
     matches: fn (Email $mail, MailContext $context): bool => count($context->recipientUsers) === 1,
     handle: function (Email $mail, MailContext $context): MailActions {
@@ -12,7 +14,7 @@ $automation->onFolder(Folder::Sent)->addAutomation(
             $user->classify('new_contact');
         }
         $user->setMetadata('source', 'sent_folder');
-        // Erfolgreich ohne Mailaktion; die Engine setzt phore_outgoing_processed.
+        // Erfolgreich ohne Mailaktion; die Engine setzt phore_processed.
         return MailActions::none();
     },
 );

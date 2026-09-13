@@ -1,28 +1,33 @@
 # Proposed MailAutomation application examples
 
 **API design only.** The Automation classes, stores and attributes shown here are not
-implemented by this PR. These are individual reviewable scenario files, not runnable
-demos. See the [contract](../../proposals/2026-09-13-mail-automation.md).
+implemented by this PR. These are numbered, flat application excerpts, not runnable
+demos. Numbering specifies reading order, not execution dependencies. Each file
+states its prerequisites with explicit instanceof assertions before use. See the [contract](../../proposals/2026-09-13-mail-automation.md).
 
 | File | Scenarios |
 |---|---|
-| [setup.php](setup.php) | One PDO SQLite connection; automatic tables/stores; main and Sent folders; one run |
-| [incoming.php](incoming.php) | Known B2B user with metadata/history; unknown unsolicited mail; conflict review; folder routing |
-| [outgoing.php](outgoing.php) | Observe Sent; explicitly create recipient now; default first-reply alternative; multiple recipients |
-| [first-reply.php](first-reply.php) | Live Sent verification, changed From alias, missing names, deleted outgoing, conflicting users, subsequent replies |
-| [metadata.php](metadata.php) | Persist classification/metadata; search aliases; classify through Thunderbird flag |
-| [sender-rule.php](sender-rule.php) | Specific sender/form mail; contact proposal as draft; explicitly configured sending alternative |
-| [folder-rules.php](folder-rules.php) | Equivalent attribute API; method/invokable class/function; subject and flag rules; manual moves |
-| [custom-storage.php](custom-storage.php) | Direct PDO default, ID-generator injection, explicit SQLite implementation, custom interfaces |
+| [01-setup.php](01-setup.php) | One PDO SQLite connection; automatic tables/stores; main and Sent folders; one run |
+| [02-incoming.php](02-incoming.php) | Route by known B2B classification; unknown unsolicited mail; conflict review; folder routing |
+| [03-outgoing.php](03-outgoing.php) | Observe Sent; explicitly create recipient now; default first-reply alternative; multiple recipients |
+| [04-first-reply.php](04-first-reply.php) | Live Sent verification, changed From alias, preserved primary; unknown/missing outgoing outcomes |
+| [05-metadata.php](05-metadata.php) | Persist classification/metadata; search aliases and read history |
+| [06-sender-rule.php](06-sender-rule.php) | Specific sender/form mail; contact proposal as draft; explicitly configured sending alternative |
+| [07-attributes.php](07-attributes.php) | Equivalent attribute API; method and invokable class; subject and ordinary folder rules |
+| [08-custom-storage.php](08-custom-storage.php) | Direct PDO default, ID-generator injection, explicit SQLite implementation, custom interfaces |
+| [09-send-reply.php](09-send-reply.php) | Explicit sending with a provided DraftSender adapter |
+| [10-manual-flags.php](10-manual-flags.php) | Attributed function: Thunderbird flag classifies a known user and schedules B2B processing |
 
-Start with setup.php. Add incomingRules() and, optionally, outgoingRules().
+Read 01-setup.php first. In an application, insert the registrations from 02-incoming.php
+and optionally 03-outgoing.php before run(). Do not include these files in sequence;
+each is an independent excerpt with its own prerequisites.
 Without an outgoing creation rule, users are created only on their first verified
 reply. addMailbox() indexes Sent either way. The recipient, never our own sender,
 is the new user. The originally addressed email remains primary when a reply arrives
 from a different alias.
 
 The attribute application is an alternative to the programmatic one; do not register
-both sets as duplicate business rules. Optional formMailRule() (priority 250) runs
+both sets as duplicate business rules. The optional sender-specific registration in 06-sender-rule.php (priority 250) runs
 after identity review (300) and before ordinary B2B/unknown routing. Its reply draft
 uses the actual source reply target; it does not automatically send to an address
 found inside the form content.

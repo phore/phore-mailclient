@@ -3,6 +3,7 @@
 | Datum | Benutzername | Kurzbeschreibung |
 |---|---|---|
 | 2026-09-13 | dermatthes | §§ 1–9: Proposal mit Beispielen angelegt |
+| 2026-09-13 | dermatthes | § 9: Examples nach aktueller Coding-Basis-Referenz nummeriert, abgeflacht und direkt kommentiert |
 
 ## § 1 Status and scope
 
@@ -263,11 +264,14 @@ Send actions are deliberately explicit to avoid accidental automatic responses.
 
 ## § 9 Examples and validation
 
-See the [scenario index](../examples/proposed-automation/README.md) and individual
-files for minimal setup, incoming B2B routing, unknown contacts, Sent rules, first
-reply/alias learning, metadata/classification, sender-specific form handling, attributes,
-manual moves and custom storage. Namespaces under Phore\MailClient\Automation are
-proposed, not currently shipped.
+See the [scenario index](../examples/proposed-automation/README.md) and ten numbered
+application excerpts for minimal setup, incoming B2B routing, unknown contacts, Sent
+rules, reply/alias learning, metadata/classification, sender-specific drafts, attributes,
+custom storage, actual sending and manual flag workflows. Each excerpt is flat,
+asserts supplied object types before use, explains API elements at first occurrence
+and states concrete results. Numbers specify reading order, not execution dependencies.
+Only actual registered callbacks/attribute handlers use functions or methods.
+Namespaces under Phore\MailClient\Automation are proposed, not currently shipped. [geändert]
 
 Future implementation needs side-effect-free reading, permanent keyword checks,
 general same-account moves, Sent lookup and identity/header access, SQLite tables,

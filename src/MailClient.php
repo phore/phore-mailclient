@@ -10,6 +10,8 @@ use Phore\MailClient\Internal\MessageDefaults;
 use Phore\MailClient\Internal\Mime;
 use Phore\MailClient\Internal\Reference;
 use Phore\MailClient\Internal\Transport;
+use Phore\MailClient\Internal\SyncTransport;
+use Phore\MailClient\Internal\SyncCursor;
 
 final class MailClient
 {
@@ -73,6 +75,62 @@ final class MailClient
             $emails[] = $this->get($reference->encode()); $last = $uid;
         }
         return new EmailBatch($emails,(new Reference($this->account,'INBOX',(int)$status['uidvalidity'],$last))->encode());
+    }
+    /**
+     * Observe one folder without changing flags, even in automatic mode.
+     * A null cursor reports all existing messages as added, in batches.
+     * Persist nextCursor only after processing the complete result.
+     */
+    public function syncFolder(string $folder, ?string $cursor = null, int $limit = 50): FolderChanges
+    {
+        Headers::validate($folder);
+        if ($folder === '' || $limit < 1 || $limit > 500) { throw new InvalidArgumentException('Provide a nonempty folder and a limit of 1–500.'); }
+        if (strcasecmp($folder, 'INBOX') === 0) { $folder = 'INBOX'; }
+        $previous = $cursor === null ? null : SyncCursor::decode($cursor, $this->account, $folder);
+        if (!$this->transport instanceof SyncTransport) { throw new RuntimeException('Transport does not support folder synchronization.'); }
+        $status = $this->transport->select($folder);
+        $validity = (int)$status['uidvalidity'];
+        if ($previous !== null && $previous->validity !== $validity) { throw new SyncResetRequired($folder); }
+        $uids = $this->transport->search([]);
+        if (count($uids) > SyncCursor::MAX_MESSAGES) { throw new RuntimeException('Folder synchronization supports at most 10000 messages per folder.'); }
+        $current = [];
+        foreach (array_chunk($uids, 100) as $chunk) {
+            foreach ($this->transport->syncFlags($chunk) as $uid => $flags) {
+                if (!is_int($uid) || !in_array($uid, $chunk, true)) { throw new RuntimeException('Unexpected UID in synchronization response.'); }
+                $current[$uid] = SyncCursor::flags($flags);
+            }
+        }
+        ksort($current, SORT_NUMERIC);
+        $known = $previous?->flags ?? [];
+        $events = [];
+        // Removals first release cursor space and retire stale references promptly.
+        foreach (array_diff_key($known, $current) as $uid => $_) { $events[] = ['removed', $uid]; }
+        foreach ($current as $uid => $flags) {
+            if (!array_key_exists($uid, $known)) { $events[] = ['added', $uid]; }
+            elseif (!SyncCursor::sameFlags($known[$uid], $flags)) { $events[] = ['flags', $uid]; }
+        }
+        $added = []; $changed = []; $removed = [];
+        foreach (array_slice($events, 0, $limit) as [$kind, $uid]) {
+            $id = (new Reference($this->account, $folder, $validity, $uid))->encode();
+            if ($kind === 'removed') { $removed[] = $id; unset($known[$uid]); }
+            elseif ($kind === 'flags') {
+                $changed[] = new FlagChange($id, $known[$uid], $current[$uid]);
+                $known[$uid] = $current[$uid];
+            } else {
+                // read(), not get(): synchronization never marks messages Seen.
+                // If an added message disappears during the read, fail without advancing the cursor.
+                $email = $this->read($id);
+                $known[$uid] = SyncCursor::flags($email->flags());
+                $added[] = $email;
+            }
+        }
+        $finalStatus = $this->transport->select($folder);
+        if ((int)$finalStatus['uidvalidity'] !== $validity) { throw new SyncResetRequired($folder); }
+        return new FolderChanges(
+            folder: $folder, added: $added, flagsChanged: $changed, removed: $removed,
+            nextCursor: (new SyncCursor($this->account, $folder, $validity, $known))->encode(),
+            hasMore: count($events) > $limit, isInitialSync: $previous === null,
+        );
     }
     public function get(string $id): Email
     {

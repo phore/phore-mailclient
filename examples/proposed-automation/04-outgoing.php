@@ -4,20 +4,22 @@ declare(strict_types=1);
 // API-ENTWURF: Die Automation-Typen sind noch nicht implementiert.
 // Anwendungsausschnitt mit ausdrücklich vorausgesetzten Objekten; nicht eigenständig ausführbar.
 
+// Folder benennt Standardordner; ihre tatsächlichen Namen stammen aus dem Client.
+// automationId ist optional; active (Standard true) kann diese Regel vorübergehend deaktivieren.
 // Ziel: Beim Beobachten neuer Gesendet-Nachrichten den einzelnen Empfänger anlegen.
 use Phore\MailClient\Email;
-use Phore\MailClient\Automation\{MailAutomation, MailActions, MailContext};
+use Phore\MailClient\Automation\{Folder, MailAutomation, MailActions, MailContext};
 
 // Voraussetzung: $automation verwendet den bereits konfigurierten Client.
 // MailAutomation synchronisiert Sent vor den Eingängen.
 assert($automation instanceof MailAutomation);
 
-// onSentMessage wählt neue beobachtete Ausgänge; addAutomation registriert die erste passende Regel.
-// id identifiziert sie, priority steuert die Reihenfolge, matches ist eine reine Bedingung.
+// onFolder(Folder::Sent) wählt neue beobachtete Ausgänge; addAutomation registriert die erste passende Regel.
+// automationId identifiziert sie, priority steuert die Reihenfolge, matches ist eine reine Bedingung.
 // Email ist der Ausgang; MailContext liefert recipientUsers (Adresse => MailUser|null).
 // handle wird erst nach einem Treffer aufgerufen und gibt MailActions zurück.
-$automation->onSentMessage()->addAutomation(
-    id: 'outgoing.create-recipient', priority: 0,
+$automation->onFolder(Folder::Sent)->addAutomation(
+    automationId: 'outgoing.create-recipient', priority: 0,
     matches: fn (Email $mail, MailContext $context): bool => count($context->recipientUsers) === 1,
     handle: function (Email $mail, MailContext $context): MailActions {
         // createUserForRecipient erstellt den einzigen externen Empfänger oder lädt ihn.

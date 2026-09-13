@@ -4,9 +4,11 @@ declare(strict_types=1);
 // API-ENTWURF: Die Automation-Typen sind noch nicht implementiert.
 // Anwendungsausschnitt mit ausdrücklich vorausgesetzten Objekten; nicht eigenständig ausführbar.
 
+// Folder benennt Standardordner; ihre tatsächlichen Namen stammen aus dem Client.
+// automationId ist optional; active (Standard true) kann diese Regel vorübergehend deaktivieren.
 // Ziel: Eine Antwort ausdrücklich senden statt nur einen Entwurf zu speichern.
 use Phore\MailClient\{Email, MailClient};
-use Phore\MailClient\Automation\{DraftSender, MailAutomation, MailActions, MailContext};
+use Phore\MailClient\Automation\{Folder, DraftSender, MailAutomation, MailActions, MailContext};
 
 // Voraussetzungen: SQLite-Verbindung, verbundener IMAP-Client und Versandadapter der Anwendung.
 assert($database instanceof PDO); // PDO ist hier bereits mit SQLite verbunden.
@@ -18,10 +20,10 @@ $automation = new MailAutomation(client: $client, storage: $database, sender: $s
 
 // Verbindung, Absender und Ordner stammen ausschließlich aus dem übergebenen Client.
 
-// onInboxMessage wählt Eingänge. addAutomation registriert id, priority und reine matches-Bedingung.
+// onFolder(Folder::Inbox) wählt Eingänge. addAutomation registriert automationId, priority und reine matches-Bedingung.
 // Email.from liefert Autoren; getAddress die nackte Adresse. MailContext enthält Benutzerkontext.
-$automation->onInboxMessage()->addAutomation(
-    id: 'form.send-reply', priority: 100,
+$automation->onFolder(Folder::Inbox)->addAutomation(
+    automationId: 'form.send-reply', priority: 100,
     matches: fn (Email $mail, MailContext $context): bool =>
         count($mail->from()) === 1 && $mail->from()[0]->getAddress() === 'forms@example.org',
     // handle liefert MailActions; create beginnt die Liste.

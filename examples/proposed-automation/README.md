@@ -61,7 +61,13 @@ claimed. Permanent custom keywords must be supported. All target folders must ex
 PDO SQLite requires its extension; no schema factories are written by application
 code. No real mailbox, AI service or sending service is called by these files.
 
-One automation owns one MailClient connection. onInboxMessage() and onSentMessage() need
+One automation owns one MailClient connection. onFolder(Folder::Inbox) and onFolder(Folder::Sent) need
 no account key; onFolder('B2B') selects only a folder within that client.
 addAutomation(...) registers work; run() executes it. addRules(...) registers
 attributed rule objects/callables. Configuration belongs exclusively to the client.
+
+`#[OnFolderAutomation]` selects a folder without a separate Mailbox attribute.
+`automationId` is optional (class short name by default; methods include their name).
+`active: false` skips a rule; it does not retain a backlog. See example 08.
+Example 05 explicitly binds `new ReplyIdentityResolver()` through `identity:`;
+its standard behavior also applies when that constructor option is omitted.

@@ -13,9 +13,9 @@ use Phore\MailClient\Automation\Attributes\{OnFlagAdded};
 assert($automation instanceof MailAutomation); // Registriert Regeln und überwacht Flagänderungen.
 
 // OnFlagAdded reagiert auf dieses neue Keyword
-// im genannten folder, auch wenn die Nachricht schon processed ist. id ist die Regelkennung.
+// im genannten folder, auch wenn die Nachricht schon processed ist. automationId ist die optionale Regelkennung.
 // Dies ist die registrierte Callback-Funktion selbst, keine umschließende Demo-Funktion.
-#[OnFlagAdded(id: 'manual.b2b', folder: 'Customers', flag: 'classify_b2b')]
+#[OnFlagAdded(automationId: 'manual.b2b', folder: 'Customers', flag: 'classify_b2b')]
 function classifyB2b(Email $mail, MailContext $context): MailActions
 {
     // Email ist die betroffene Nachricht; MailContext.user ist MailUser|null.

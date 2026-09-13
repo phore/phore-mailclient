@@ -5,6 +5,7 @@
 | 2026-09-13 | dermatthes | §§ 1–9: Proposal mit Beispielen angelegt |
 | 2026-09-13 | dermatthes | § 9: Examples nach aktueller Coding-Basis-Referenz nummeriert, abgeflacht und direkt kommentiert |
 | 2026-09-13 | dermatthes | §§ 2–7, § 9: Eine Client-Verbindung, geerbte Konfiguration, addAutomation, onInboxMessage/onSentMessage und Gesamtbeispiel |
+| 2026-09-13 | dermatthes | §§ 2–3, § 6: Resolver initialisieren/einbinden, Kontext anreichern, Folder-Enum, OnFolderAutomation, optionale automationId und active |
 
 ## § 1 Status and scope
 
@@ -25,25 +26,25 @@ new MailAutomation(client: $client, storage: $storage).
 MailClient is required, as is PDO|AutomationStorage. There is no account registry,
 mailbox key, addMailbox method, Mailbox attribute or connection created by the engine.
 One sender, one incoming folder and one Sent folder are inherited from that client.
-Rule registration and identity calls therefore never take an account argument. [geändert]
+Rule registration and identity calls therefore never take an account argument.
 
 The standard storage argument is a PDO SQLite connection. The engine recognizes the
 SQLite driver and internally initializes versioned tables for state, outgoing evidence,
 users, aliases, metadata and history. No caller-written factory or interface is needed.
 The parent directory must exist; PDO creates the file. Initialization rejects incompatible
-newer schemas and never silently destroys existing state. [geändert]
+newer schemas and never silently destroys existing state.
 
 Advanced callers can pass AutomationStorage directly. Non-SQLite PDO fails clearly
 with instructions to supply that interface. SqliteStorage is an optional explicit
 implementation; it composes SqliteAutomationState, SqliteAliasStore and
 SqliteMailHistoryStore over one connection. Custom UserIdGenerator and DraftSender
-adapters remain optional customization, not prerequisites for normal usage. [geändert]
+adapters remain optional customization, not prerequisites for normal usage.
 
 The existing MailClient currently has INBOX fixed internally, an optional from address
 and configured Drafts/Trash folders; it does NOT yet expose a Sent-folder setting or
 the complete read-only configuration needed here. Future implementation must retain
 incomingFolder (default INBOX), sentFolder (default Sent), one configured from address
-and existing draft/trash configuration on the client. Automation reads these values
+and existing draft/trash configuration plus a Junk-folder mapping on the client. Automation reads these values
 without duplicating them in its constructor or example setup. Provider-specific folder
 names are configured once when constructing the client. This proposal does not change
 MailboxConfig JSON or its reference yet; implementation must update that reference
@@ -54,14 +55,27 @@ fails with a clear instruction to configure the client. Never guess from a login
 Missing folders or identical incoming/Sent folders also fail clearly. No folders are
 silently created and the engine does not open another account connection. The client
 must provide side-effect-free automation reads without mutating the application's
-automatic-mode setting. [geändert]
+automatic-mode setting.
 
 AutomationStorage provides state(), users() and history() through their respective
 interfaces. One storage instance belongs to this one client/account, not an implicit
 multi-account namespace. Bind persisted state to the client's account identity and
 reject a foreign client using that state; a deliberate migration requires review.
 User IDs are unique within the store. Repeated runs with the same client reuse state.
-Configuration is fixed for the lifetime of an automation instance. [geändert]
+Configuration is fixed for the lifetime of an automation instance.
+
+Optional identity: new ReplyIdentityResolver() explicitly supplies the default identity
+strategy. When omitted, MailAutomation uses the same strategy internally. The engine
+binds it to the supplied client and storage's users/history before any rule evaluation.
+No second connection, independent database or application-written factory is needed.
+The resolver learns users/aliases from verified replies by default; ID generation
+belongs to the shared store and its UserIdGenerator, not to handlers. A configured
+resolver instance is bound to one automation only; using it unbound for direct learning
+fails clearly. Custom strategies implement IdentityResolver with bind(MailClient,
+AutomationStorage): void and resolve(Email): IdentityResult. Binding occurs once;
+resolve performs incoming lookup/allowed learning before predicates and handlers.
+Outgoing contexts only look up recipients; creation remains an explicit outgoing action. ReplyIdentityResolver
+also retains learnAliasFromReply(Email) for explicit specialized use after binding. [neu]
 
 ## § 3 Run and rule semantics
 
@@ -69,30 +83,50 @@ run(): RunReport first synchronizes the client's Sent folder and runs eligible
 outgoing rules, then synchronizes its incoming/ordinary folders and processes their rules.
 It returns counts and structured errors. It does not schedule itself. A CLI wrapper
 can call this method as automation:run. All message reads are side-effect-free unless
-an action explicitly changes flags. No implicit Seen/Answered changes. [geändert]
+an action explicitly changes flags. No implicit Seen/Answered changes.
 
-Builders onInboxMessage(), onSentMessage(), onFolder() and onFlagAdded() share
-addAutomation(id, priority, matches, handle). Predicates receive (Email, MailContext): bool.
-Handlers receive (Email, MailContext): MailActions. Higher priority wins; ties use
-registration order. Only the first matching handler runs for each event route.
-Duplicate IDs or incompatible signatures fail before mailbox writes. An exception
-is a failed rule, never a fall-through to the next matching rule. onInboxMessage()
-selects eligible Inbox messages, including explicit reprocessing after marker removal;
-onSentMessage() selects eligible messages observed in Sent. The names describe the
-message location, not proof of newly delivered or newly transmitted mail. [geändert]
+onFolder(Folder|string) selects a standard or exact named folder, then
+addAutomation(matches, handle, priority: 0, automationId: null, active: true) registers the work. Folder enum values
+are Inbox, Sent, Drafts, Trash and Junk; the client maps each to its actual name.
+Strings are exact folder names. Special Inbox/Sent behavior follows the resolved
+folder identity even when selected by its string name. Missing mappings fail clearly,
+never fall back to guessed provider folders. Sent/Inbox configuration must be distinct.
+These selectors replace separate onInboxMessage/onSentMessage methods. onFlagAdded
+also accepts Folder|string and uses addAutomation. Predicates receive
+(Email, MailContext): bool; handlers receive (Email, MailContext): MailActions.
+Higher priority wins, ties use registration order. Only the first matching handler
+runs per event route. Duplicate IDs/incompatible signatures fail before writes.
+Exceptions are failures, never a fall-through. Unmarked observed messages and deliberate
+marker resets are eligible; a folder event is not proof of new delivery. [geändert]
 
 Before incoming predicates run, resolve a known From or learn identity from a verified
 outgoing reply link. MailContext exposes user (?MailUser), users (AliasStore),
 history (MailHistoryStore), identity (IdentityResult), folder and direction.
 For outgoing mail, user is the already known sole external recipient, not ourselves;
 recipientUsers exposes each external recipient mapped to a user or null. For multiple
-recipients, user=null; applications must explicitly address each recipient. [geändert]
+recipients, user=null; applications must explicitly address each recipient.
 
 Class instances, invokable classes and attributed function callables are registered
-with addRules(object|callable). OnInboxMessage, OnSentMessage, OnFolder and OnFlagAdded
-attributes compile to the same rules as builders. Trigger attributes on a class apply
+with addRules(object|callable). OnFolderAutomation(folder: Folder::Inbox),
+OnFolderAutomation(folder: Folder::Sent) and OnFlagAdded attributes compile to the same rules as builders. Trigger attributes on a class apply
 to __invoke; method attributes apply to that method. Constructor dependencies are
 provided by the application. Do not register one rule through both mechanisms. [geändert]
+
+The optional parameter is automationId (camelCase, consistent with the PHP API),
+not a user ID. Without it, class attributes/invokable handlers use the class short name;
+method handlers use ShortClassName::method and named functions their qualified name.
+Anonymous closures receive an internal per-registration ID, stable only for that instance;
+provide automationId for stable cross-run diagnostics. Duplicate inferred or explicit IDs
+fail during registration, including inactive rules; disambiguate with automationId.
+Renaming a class changes its inferred ID but does not reset message processed flags. [neu]
+
+Both addAutomation and trigger attributes accept active: bool = true. With false,
+the rule is registered but neither its predicate nor handler executes. Other active rules
+continue normally. If none matches, normal no-match marking still applies; active: false
+is not a folder pause or backlog retention mechanism. Re-enabling affects eligible mail;
+already processed messages require an explicit marker reset to run again. Resolver enrichment
+and Sent indexing are independent of a rule's active setting. Change configuration before
+the next run; no dynamic switching API is required for V1. [neu]
 
 ## § 4 Processed flags, moves and reprocessing
 
@@ -129,7 +163,7 @@ messages without running outgoing business rules by default, avoiding accidental
 bulk contact creation. The explicit run(processExistingOutgoing: true) option opts into those
 rules during the initial Sent scan for unmarked backlog. Persist bootstrap phase across pages: PR #5's
 isInitialSync describes only the first page. Existing incoming backlog therefore can
-resolve against existing Sent evidence. [geändert]
+resolve against existing Sent evidence.
 
 UIDVALIDITY changes require explicit resynchronization; network failures never erase
 cursors. Preserved flags allow safe eligibility rebuilding under the chosen simple
@@ -147,7 +181,7 @@ Index final Message-ID, full intended recipient set (To/Cc and Bcc when retained
 recipient display names, configured sender, sent timestamp and live folder location.
 Only messages sent from client's configured sender address qualify. Copied Sent entries are
 observable records, not independent SMTP-delivery proof; this design deliberately
-trusts the configured Sent folder. Drafts never count. [geändert]
+trusts the configured Sent folder. Drafts never count.
 
 The default is creation on the first qualifying reply. Sent observation alone stores
 recipient evidence but no MailUser. An outgoing rule may call
@@ -179,10 +213,12 @@ uses the fallback immediately. Later name changes never change the ID.
 ## § 6 Live reply verification and alias learning
 
 ReplyIdentityResolver::learnAliasFromReply(Email $email): IdentityResult
-is the explicit method, called automatically by MailAutomation before incoming rules.
+is the explicit learning method used by the default resolver's resolve operation.
+MailAutomation invokes its bound strategy before incoming predicates/handlers and assigns
+IdentityResult to context.identity and its user to context.user. Handlers need no resolver call. [geändert]
 It returns status (Unknown, KnownAddress, UserCreated, AliasAdded, Conflict,
 OutgoingMissing), nullable user, matched outgoing evidence and aliasAdded.
-needsReview() is true for Conflict and OutgoingMissing; isConflict() only for Conflict. [geändert]
+needsReview() is true for Conflict and OutgoingMissing; isConflict() only for Conflict.
 
 Inspect exact In-Reply-To IDs first. Resolve conflicting direct targets as Conflict;
 do not pick an older References entry to escape a conflict or a missing direct target.
@@ -198,7 +234,7 @@ UIDVALIDITY. If its location is stale, search Sent by Message-ID then compare ex
 values (IMAP header search may be substring based). If Sent indexing lagged, perform
 that same live search rather than prematurely calling the sender unknown.
 Zero matches yields OutgoingMissing; ambiguous duplicate matches yield Conflict;
-network/permission errors are errors, never successful verification. [geändert]
+network/permission errors are errors, never successful verification.
 
 V1 learns only from a unique outgoing record with exactly one external recipient.
 A multi-recipient or mismatched record is Conflict; no automatic user merges.
@@ -257,7 +293,7 @@ deferred locations) per folder within the bound client. MailHistoryStore indexes
 records incoming metadata with nullable user ID and provides forUser(id, limit: 50).
 Historical records retain evidence and can link previously unknown conversation
 entries after resolution; unrelated unknown messages stay unassigned. Full bodies
-and attachments are not archived by default. [geändert]
+and attachments are not archived by default.
 
 SqliteAliasStore returns user metadata/classification with resolved users, not a
 second mandatory application lookup. Custom AutomationStorage may return users backed
@@ -293,7 +329,7 @@ custom storage, actual sending and manual flag workflows. Each excerpt is flat,
 asserts supplied object types before use, explains API elements at first occurrence
 and states concrete results. Numbers specify reading order, not execution dependencies.
 Only actual registered callbacks/attribute handlers use functions or methods.
-Namespaces under Phore\MailClient\Automation are proposed, not currently shipped. [geändert]
+Namespaces under Phore\MailClient\Automation are proposed, not currently shipped.
 
 Future implementation needs side-effect-free reading, permanent keyword checks,
 general same-account moves, Sent lookup and identity/header access, SQLite tables,

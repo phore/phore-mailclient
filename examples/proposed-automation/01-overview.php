@@ -9,19 +9,19 @@ $automation = new MailAutomation(client: $client, storage: $database);
 
 // Folder::Inbox verwendet den im Client festgelegten Eingangsordner.
 // Registrierung führt noch nichts aus. matches prüft, handle beschreibt Mailaktionen.
-// MailContext enthält bereits contact (Contact|null) und das Ergebnis der Identitätsprüfung.
+// MailContext enthält bereits contact (Contact|null) und das Ergebnis der Kontaktauflösung.
 $automation->onFolder(Folder::Inbox)->addAutomation(
     matches: fn (Email $mail, MailContext $context): bool => true,
     handle: function (Email $mail, MailContext $context): MailActions {
         // Fehlende/widersprüchliche Antwortbelege gehören zur manuellen Prüfung.
-        if (!$context->identity->needsReview() && $context->contact?->classification === 'b2b') {
+        if (!$context->contactResolution->needsReview() && $context->contact?->metadata->get('classification') === 'b2b') {
             return MailActions::create()->moveTo('B2B');
         }
         return MailActions::create()->addFlag('phore_review')->moveTo('Review');
     },
 );
 
-// Erst hier: Sent indexieren, Identität auflösen, Eingänge verarbeiten und Cursor speichern.
+// Erst hier: Sent indexieren, Kontakte zuordnen, Eingänge verarbeiten und Cursor speichern.
 // phore_processed sperrt vorab ALLE Regeln und das Aliaslernen, auch in Sent.
 // Erfolg setzt dieses Keyword; Verschieben/Kopieren mit erhaltenem Keyword bleibt gesperrt.
 $report = $automation->run();

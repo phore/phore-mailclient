@@ -6,7 +6,7 @@
 // complete() oder eine erfolgreiche Aktionsliste beendet die Kette für diese Mail.
 $automation->onFolder(Folder::Inbox)->addAutomation(
     priority: 300,
-    matches: fn (Email $mail, MailContext $context): bool => $context->identity->needsReview(),
+    matches: fn (Email $mail, MailContext $context): bool => $context->contactResolution->needsReview(),
     handle: fn (Email $mail, MailContext $context): MailActions =>
         MailActions::create()->addFlag('phore_review')->moveTo('Review'),
 );
@@ -19,7 +19,7 @@ $automation->onFolder(Folder::Inbox)->addAutomation(
     handle: function (Email $mail, MailContext $context): MailActions {
         // Variante: Zuständigkeit wird hier erst im Handler entschieden.
         // Vor pass() keine Mail- oder Kontaktänderungen ausführen.
-        if ($context->contact?->classification !== 'b2b') {
+        if ($context->contact?->metadata->get('classification') !== 'b2b') {
             return MailActions::pass();
         }
         return MailActions::create()->moveTo('B2B', reprocess: true);

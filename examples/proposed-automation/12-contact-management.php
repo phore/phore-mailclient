@@ -15,7 +15,7 @@ if ($contact === null) {
 $contactId = $contact->id;
 $contact->setName('Anna Schneider'); // Personenname; ID und Aliasnamen bleiben bestehen.
 $contact->metadata->set('customerNumber', 'C-1042');
-$contact->classify('b2b'); // Ersetzt classification; Routing liest es in Beispiel 03.
+$contact->metadata->set('classification', 'b2b'); // Anwendungsdaten für das Routing aus 03.
 
 // Eine Aliasadresse hat einen eigenen optionalen Anzeigenamen.
 // addAlias liefert ContactAlias; die Hauptadresse bleibt zunächst anna@old.example.
@@ -42,7 +42,7 @@ foreach ($updated->aliases as $address) {
 }
 
 // Ergebnis: dieselbe Kontakt-ID, name='Anna Schneider', primaryEmail=anna@firma.example,
-// classification=b2b, customerNumber=C-1042 und Aliasname='Anna Schneider – Einkauf'.
+// metadata.classification=b2b, customerNumber=C-1042 und Aliasname='Anna Schneider – Einkauf'.
 // Andere bestehende Aliase bleiben erhalten; anna@old.example ist kein aktiver Alias mehr.
 // Manuelles Hinzufügen hat source='manual', keine erfundenen Antwort-/Sent-Belege.
 // Keine Nachricht/kein Keyword wird geändert oder erneut verarbeitet.

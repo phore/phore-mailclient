@@ -12,6 +12,7 @@
 | 2026-09-13 | dermatthes | §§ 3–4: complete für Abschluss, pass für nächste passende Automatisierung; mehrdeutiges none entfernt |
 | 2026-09-13 | dermatthes | §§ 2–3, §§ 5–9: Contact-Kontext, Thread-/Mailbox-Zugriff und vier getrennte Metadatenbereiche; vollständiges Handler-Beispiel |
 | 2026-09-13 | dermatthes | §§ 6–7, §§ 7.1–7.2, § 9: Kontaktauflösung, Aliasverwaltung und Klassifizierung erklärt; Metadaten als reine Anwendungsdaten präzisiert |
+| 2026-09-13 | dermatthes | §§ 2–3, §§ 6–7, §§ 6.1/7.1/7.4, § 9: ContactResolution-Fälle, einheitliche Benennung und typisierte Anwendungsmetadaten ohne Contact.classify |
 
 ## § 1 Status and scope
 
@@ -72,18 +73,18 @@ reject a foreign client using that state; a deliberate migration requires review
 Contact IDs are unique within the store. Repeated runs with the same client reuse state.
 Configuration is fixed for the lifetime of an automation instance.
 
-Optional identity: new ReplyIdentityResolver() explicitly supplies the default identity
+Optional contactResolver: new ReplyContactResolver() explicitly supplies the default identity
 strategy. When omitted, MailAutomation uses the same strategy internally. The engine
 binds it to the supplied client and storage's contacts/history before any rule evaluation.
 No second connection, independent database or application-written factory is needed.
 The resolver learns contacts/aliases from verified replies by default; ID generation
 belongs to the shared store and its ContactIdGenerator, not to handlers. A configured
 resolver instance is bound to one automation only; using it unbound for direct learning
-fails clearly. Custom strategies implement IdentityResolver with bind(MailClient,
-AutomationStorage): void and resolve(Email): IdentityResult. Binding occurs once;
+fails clearly. Custom strategies implement ContactResolver with bind(MailClient,
+AutomationStorage): void and resolve(Email): ContactResolution. Binding occurs once;
 resolve performs incoming lookup/allowed learning before predicates and handlers, only for messages admitted by the processed gate.
-Outgoing contexts only look up recipients; creation remains an explicit outgoing action. ReplyIdentityResolver
-also retains learnAliasFromReply(Email) for explicit specialized use after binding.
+Outgoing contexts only look up recipients; creation remains an explicit outgoing action. ReplyContactResolver
+also retains learnAliasFromReply(Email) for explicit specialized use after binding. [geändert]
 
 ## § 3 Run and rule semantics
 
@@ -128,14 +129,14 @@ the chain and keeps work pending; no fallback handler executes after a failure.
 First check the current phore_processed keyword. Marked messages skip identity learning,
 predicates, handlers and mail actions. For eligible incoming messages, resolve a known From or learn identity from a verified
 outgoing reply link. MailContext exposes contact (?Contact), thread (MailThread),
-metadata (MetadataBag for this message), mailbox (MailboxContext), identity
-(IdentityResult), folder and direction. It does not expose global contacts/history stores
+metadata (MetadataBag for this message), mailbox (MailboxContext), contactResolution
+(ContactResolution), folder and direction. It does not expose global contacts/history stores
 directly. MailboxContext reuses the same client/storage and exposes contacts (ContactStore),
 mailHistory (MailHistoryStore) and metadata (MetadataBag for this account). Mailbox means
 the bound account here, while Folder means an individual IMAP folder.
 For outgoing mail, contact is the already known sole external recipient, not ourselves;
 recipientContacts exposes each external recipient mapped to a contact or null. For multiple
-recipients, contact=null; applications must explicitly address each recipient.
+recipients, contact=null; applications must explicitly address each recipient. [geändert]
 
 Class instances, invokable classes and attributed function callables are registered
 with addRules(object|callable). OnFolderAutomation(folder: Folder::Inbox),
@@ -270,15 +271,15 @@ uses the fallback immediately. Later name changes never change the ID.
 
 ## § 6 Live reply verification and alias learning
 
-ReplyIdentityResolver::learnAliasFromReply(Email $email): IdentityResult
+ReplyContactResolver::learnAliasFromReply(Email $email): ContactResolution
 is the explicit learning method used by the default resolver's resolve operation.
 MailAutomation invokes its bound strategy only after the processed gate admits the
 incoming message, before predicates/handlers, and assigns
-IdentityResult to context.identity and its contact to context.contact. Handlers need no resolver call.
+ContactResolution to context.contactResolution and its contact to context.contact. Handlers need no resolver call.
 It returns status (Unknown, KnownAddress, ContactCreated, AliasAdded, Conflict,
 OutgoingMissing), nullable contact, matched outgoing evidence and aliasAdded.
 needsReview() is true for Conflict and OutgoingMissing; isConflict() only for Conflict.
-IdentityResult describes this message's resolution outcome, not another person or a login.
+ContactResolution describes this message's resolution outcome, not another person or a login.
 ContactCreated takes precedence when a new contact was inserted; aliasAdded can also be true
 if its reply From differs from the primary recipient. AliasAdded means an existing contact
 gained an alias; KnownAddress means a known address without conflicting evidence. [geändert]
@@ -303,7 +304,7 @@ V1 learns only from a unique outgoing record with exactly one external recipient
 A multi-recipient or mismatched record is Conflict; no automatic contact merges.
 If any candidate address already belongs to another contact, all evidence must agree;
 otherwise return Conflict. Known From contacts can still be exposed in contact, but
-identity.status must reveal conflicting reply evidence and prevent new learning.
+contactResolution.status must reveal conflicting reply evidence and prevent new learning. [geändert]
 
 For pending recipients, first look up their address again: separate outgoing messages
 to the same recipient converge on one contact. The original recipient becomes primary,
@@ -316,15 +317,63 @@ the reply author is the same natural person. A colleague may answer a forwarded 
 and headers can be fabricated. This is accepted automatic contact-learning behavior,
 not authentication or permission to disclose sensitive data.
 
+### § 6.1 ContactResolution results and application decisions
+
+ContactResolution is the technical result of resolving this message, not a login identity,
+business classification or application metadata. Its status is ContactResolutionStatus,
+a PHP enum with Unknown, KnownAddress, ContactCreated, AliasAdded, Conflict and OutgoingMissing.
+It exposes contact (?Contact), aliasAdded (bool) and matchedOutgoing (?OutgoingContactEvidence).
+Incoming context.contact is the same contact as this result. No custom application metadata
+class replaces this technical result; custom metadata is configured independently in § 7.4. [neu]
+
+| Incoming status | Origin and contact | Recommended application response |
+|---|---|---|
+| Unknown | No known From and no eligible outgoing reply evidence; contact=null, no insertion | Route for first-contact handling; do not create blindly |
+| KnownAddress | Existing From alias, no contradictory evidence; existing contact, no new alias | Use existing contact metadata for business routing |
+| ContactCreated | Live verified reply created the originally addressed contact; contact is present | Initial business review/classification; do not create again |
+| AliasAdded | Verified reply attached a new From to an existing contact | Continue using that same contact; do not replace primary |
+| Conflict | Ambiguous references/outgoing copies, multiple recipients or incompatible contact ownership; known From contact may remain | Stop normal routing; review references and alias ownership, never auto-merge |
+| OutgoingMissing | Exact referenced outgoing absent after successful live Sent lookup; known From contact may remain | Check configured Sent and restore/clarify evidence, then explicitly reprocess |
+
+ContactCreated takes precedence over AliasAdded; aliasAdded=true only when a distinct
+reply From alias was newly added, including during contact creation. Both successful learning
+statuses provide matchedOutgoing. KnownAddress may provide it for a verified reply and otherwise
+has null. Unknown, Conflict and OutgoingMissing provide null; an ambiguous candidate is never
+presented as a verified match. aliasAdded=false for all non-learning results.
+OutgoingContactEvidence exposes messageId (exact RFC Message-ID), recipientEmail (sole external
+recipient) and folder (resolved Sent name). These fields explain a checked link, not a promise
+of ongoing existence or permission to disclose private correspondence. [neu]
+
+Own addresses, bounces and auto-generated replies are excluded from learning. Existing From
+lookup may still yield KnownAddress; otherwise Unknown, without treating exclusion as a conflict.
+Technical network/permission/storage failures abort resolution and leave the mail pending;
+they are not Unknown or OutgoingMissing and do not invoke a business handler with a fabricated result.
+The report records the failure; its detailed public error-access API is still an open design point. [neu]
+
+needsReview() is equivalent to Conflict or OutgoingMissing; isConflict() means Conflict only.
+Neither method performs routing, sends mail or schedules retries. Example 13 deliberately
+moves review cases to Review and completes processing; it does not leave them pending.
+After human correction move back to the intended folder, then remove phore_processed last.
+The next run resolves again. pass() delegates only within the current chain and never reverses
+the resolver's already persisted learning. Marked messages never reach resolution/handlers,
+so there is no Processed or Skipped ContactResolutionStatus. [neu]
+
+For Sent, this result describes recipient lookup before handlers, not incoming reply verification.
+A sole known external recipient yields KnownAddress/contact; a sole unknown recipient yields
+Unknown/null. Zero or multiple external recipients yield Unknown/null without review by default;
+recipientContacts holds each individual lookup for applications that need it.
+An explicit createContactForRecipient() returns the created/reused Contact; callers use that
+return value, not the pre-handler resolution snapshot, to inspect the creation.
+See example 04. Other folders follow the incoming lookup rules for received correspondence. [neu]
+
 ## § 7 Contacts, IDs, classification and interfaces
 
-Contact exposes id, nullable name, primaryEmail, aliases, metadata and classification.
-classification is a nullable application-defined string (e.g. b2b or new_contact).
-classify(string $classification): void immediately replaces that dedicated field;
-it does not run AI, move mail, invoke another rule or change keywords. Application rules
-read contact.classification explicitly, as in example 03. metadata is a scoped MetadataBag.
+Contact exposes id, nullable name, primaryEmail, aliases and metadata.
+There is no built-in classification field or classify() method on Contact or ContactStore.
+Applications may store metadata.set('classification', 'b2b') and explicitly read that key
+for routing, or put domain methods on their own MetadataBag subclass (§ 7.4).
 setName(?string $name): void changes only the person's display name, never its ID or alias names.
-Reads do not insert. Learning never overwrites established primary/name/classification,
+Reads do not insert. Learning never overwrites established primary/name,
 alias display names or application metadata. [geändert]
 
 Contact.aliases is list<ContactAlias> of active addresses including primaryEmail exactly once.
@@ -332,7 +381,7 @@ ContactAlias exposes email, nullable name (this address's display name), firstSe
 lastSeenAt, source and alias metadata, with preserved reply evidence as in § 6.
 The contact name and each alias name are independent. Primary alias names originate
 from the addressed recipient; learned reply alias names originate from that From, or null
-when absent. These names are labels, not verification evidence. [neu]
+when absent. These names are labels, not verification evidence.
 
 The following Contact mutators delegate to its bound ContactStore and persist immediately:
 addAlias(string $email, ?string $name = null): ContactAlias,
@@ -340,9 +389,8 @@ setAliasName(string $email, ?string $name): void,
 setPrimaryEmail(string $email): void and removeAlias(string $email): void.
 No save() or engine run is required; the mutated Contact exposes the updated state.
 The store exposes the same operations with a leading string $contactId argument,
-plus setName(string $contactId, ?string $name): void and
-classify(string $contactId, string $classification): void.
-Existing findByEmail/findById/search/createContact remain available. [neu]
+plus setName(string $contactId, ?string $name): void.
+Existing findByEmail/findById/search/createContact remain available. [geändert]
 
 Manual addAlias creates source=manual with nullable reply evidence, records the addition
 time and leaves the primary unchanged. An address already attached to this contact
@@ -353,14 +401,14 @@ Removing the current primary is rejected. Correct an address by explicitly addin
 confirmed replacement, optionally selecting it as primary, then removing the old alias.
 Removal retires the active mapping, preserves historical evidence and does not rewrite
 past message associations. Re-adding starts a new active association with its own provenance;
-a later qualifying reply may learn the removed address again, so removal is not a blocklist. [neu]
+a later qualifying reply may learn the removed address again, so removal is not a blocklist.
 
 Manual contact edits are an explicit application decision, not a bypass used by the
 automatic unknown-incoming path. Store conflicts/validation failures propagate and leave
 that failing operation unchanged; no transaction over a sequence of edits is promised.
 After any successful mutation a handler cannot pass(). None of these changes edits mail,
 reruns processed messages or changes an existing contact ID. Example 12 shows a deliberate
-administrative workflow using the same SqliteStorage, without creating an unknown contact. [neu]
+administrative workflow using the same SqliteStorage, without creating an unknown contact.
 
 Default ID: <name-slug>-e<8 random characters>, e.g. anna-mueller-e7k3p9x2r.
 Use secure random sampling from 23456789abcdefghjkmnpqrstuvwxyz. Enforce uniqueness
@@ -393,11 +441,11 @@ Historical records retain evidence and can link previously unknown conversation
 entries after resolution; unrelated unknown messages stay unassigned. Full bodies
 and attachments are not archived by default.
 
-SqliteContactStore returns contact metadata/classification with resolved contacts, not a
+SqliteContactStore returns contact metadata with resolved contacts, not a
 second mandatory application lookup. Custom AutomationStorage may return contacts backed
 by a CRM. A custom ContactIdGenerator does not require reimplementing any store.
 The constructor's optional idGenerator parameter applies to PDO-backed storage;
-supplying it with an already-built storage is rejected (configure that storage itself).
+supplying it with an already-built storage is rejected (configure that storage itself). [geändert]
 
 ### § 7.1 Contact, thread, message and mailbox metadata
 
@@ -407,13 +455,14 @@ identity: one thread may have several participants, and one contact may have man
 A message without a known contact still receives a thread. MailContext is the current
 message's context; context.mailbox provides an explicit path to the account-wide services.
 
-The same MetadataBag interface is used at context.metadata, context.contact.metadata
+The same extensible MetadataBag base class is used at context.metadata, context.contact.metadata
 when a contact exists, context.thread.metadata and context.mailbox.metadata.
 get(string $key): mixed returns null for a missing key; set(string $key, mixed $value): void
 immediately persists a JSON-compatible value in that one scope. Stored null is allowed
 and is indistinguishable from an absent key through get(). Writes replace that key only;
-there is no inheritance or automatic copying between scopes. Reserved system evidence,
-contact classification and processed keywords are not stored in these application bags.
+there is no inheritance or automatic copying between scopes. Reserved system evidence
+and processed keywords are not stored in these application bags; classification is an
+ordinary application key with no reserved semantics.
 set() failures propagate as errors. After a handler writes any metadata it must not pass();
 complete() does not perform an additional metadata commit. [geändert]
 
@@ -421,7 +470,7 @@ All application metadata bags are opaque to the engine: storing reviewed=true, s
 or any other key has no internal processing, scheduling, identity-learning or eligibility effect.
 Only application filters/individual logic may interpret these values. reviewed in example 06
 records that application's review decision; it is not an engine review state or a processed flag.
-phore_processed remains the sole processing gate independently of metadata. [neu]
+phore_processed remains the sole processing gate independently of metadata.
 
 Contact metadata can hold customerNumber or lastReviewedCase. Thread metadata can hold
 caseId and status. Message metadata can hold reviewed or a classification result for
@@ -457,7 +506,7 @@ application metadata must not influence the engine's thread resolution. Reconcil
 must explicitly decide the retained ID and preserve both bags, without silently overwriting
 application values. Subsequent messages in a resolved thread use its stable ID regardless
 of folder. A thread link alone never authorizes contact/alias learning; the independent
-live Sent verification from § 6 still applies. [geändert]
+live Sent verification from § 6 still applies.
 
 ### § 7.3 Moves, copies and metadata identity
 
@@ -477,6 +526,35 @@ while awaiting explicit reconciliation. The general processed gate and migration
 behavior from § 4 remain in force. Thread/contact IDs do not depend on folder UIDs.
 The future implementation must provide reliable mapping or explicit review for these
 cases before claiming transparent metadata preservation across arbitrary manual moves.
+
+### § 7.4 Typed application metadata
+
+The optional constructor arguments contactMetadata, messageMetadata, threadMetadata and
+mailboxMetadata accept class-string<T> for instantiable subclasses of MetadataBag; each defaults
+to MetadataBag::class. Pass a class, not a mutable prototype shared by different owners.
+Subclasses inherit the bag's storage binding/constructor and must not require application
+constructor dependencies. Initialization rejects invalid types before processing.
+The engine constructs each view over that owner's existing scoped storage; it does not
+serialize the PHP object. Custom methods use get()/set(); arbitrary properties are not persisted.
+Changing a view class neither rewrites stored keys nor changes contact/thread/message IDs. [neu]
+
+With PDO, MailAutomation configures these types on its internally created SqliteStorage.
+Explicit SqliteStorage accepts the same optional type arguments for use outside handlers.
+With an already-built AutomationStorage, configure its metadata types on that storage;
+additional type arguments on MailAutomation are rejected, as with idGenerator.
+All context objects, resolver results, contacts returned by mailbox.contacts and outgoing
+creation helpers must use the same configured contact view. Raw values remain JSON-compatible
+and the engine interprets none of their application meanings. [neu]
+
+The proposed PHPDoc generic order is MailAutomation<TContact, TMessage, TThread, TMailbox>
+and MailContext<TContact, TMessage, TThread, TMailbox>, each bounded by MetadataBag.
+Contact<TContact>.metadata and ContactResolution<TContact>.contact retain the contact type;
+MailThread<TThread>.metadata and MailboxContext<TContact, TMailbox> retain their respective
+types and typed contacts. Context.metadata uses TMessage. Storage/registry annotations must
+propagate these relationships for both programmatic and attributed handlers.
+Example 14 explicitly annotates its named handler and binds CustomerMetadata::class at runtime.
+PHPDoc does not instantiate types or enforce native generics; automatic inference across
+reflection-based registration is not assumed and must be validated when implementing the API. [neu]
 
 ## § 8 Actions involving outgoing mail and contact suggestions
 
@@ -501,7 +579,7 @@ Send actions are deliberately explicit to avoid accidental automatic responses.
 
 ## § 9 Examples and validation
 
-See the [scenario index](../examples/proposed-automation/README.md) and twelve numbered
+See the [scenario index](../examples/proposed-automation/README.md) and fourteen numbered
 application excerpts. The entry shows one complete default routing case. Subsequent
 files build on introduced concepts, explicitly replace or extend known code, and show
 outgoing creation, resolver binding, metadata, forms, attributes and advanced adapters.
@@ -512,10 +590,12 @@ wrappers/imports and are not standalone executable files. [geändert]
 Examples separate fixture outcomes from handler conditions, omit redundant type assertions
 and optional defaults, and show when changes occur immediately or on a later run.
 Example 06 is a complete attributed handler with registration/run, showing contact ID,
-thread messages and four metadata scopes, when contact exists, what identity means,
-reading all aliases and how classify feeds the routing in 03. Example 12 shows explicit
+thread messages and four metadata scopes, when contact exists, what contactResolution means,
+reading all aliases and how application metadata feeds the routing in 03. Example 12 shows explicit
 contact and alias edits with immediate persistence. Global stores are reached through context.mailbox;
 explicit SqliteStorage in examples 09/12 shows access outside handlers. External ID/storage/sender services have named application origins.
+Example 13 explains every contact-resolution case with a registered handler and outcomes;
+example 14 binds an application metadata class and shows its methods in a typed handler.
 The concrete public RunReport fields/error-access API remain unspecified and must be
 defined before runnable error-handling examples can be delivered. [geändert]
 

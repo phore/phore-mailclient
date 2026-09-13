@@ -5,13 +5,13 @@
 // Sent enthält <out-1@example.org> an Anna Müller <anna@old.example>.
 // Anna antwortet erstmals von anna@new.example mit In-Reply-To: <out-1@example.org>.
 
-// Explizite Einbindung der Standardstrategie; ohne identity gilt dasselbe Verhalten.
+// Explizite Einbindung der Standardstrategie; ohne contactResolver gilt dasselbe Verhalten.
 // Die Automation verbindet den Resolver mit ihrem Client und ihren gemeinsamen Stores.
-$resolver = new ReplyIdentityResolver();
+$resolver = new ReplyContactResolver();
 $automation = new MailAutomation(
     client: $client,
     storage: $database,
-    identity: $resolver,
+    contactResolver: $resolver,
 );
 
 // Vor matches/handle prüft der Resolver den Ausgang live in Sent und ergänzt den Kontext.
@@ -19,7 +19,7 @@ $automation = new MailAutomation(
 $automation->onFolder(Folder::Inbox)->addAutomation(
     matches: fn (Email $mail, MailContext $context): bool => true,
     handle: function (Email $mail, MailContext $context): MailActions {
-        if ($context->identity->needsReview() || $context->contact === null) {
+        if ($context->contactResolution->needsReview() || $context->contact === null) {
             return MailActions::create()->addFlag('phore_review');
         }
 
@@ -32,7 +32,7 @@ $report = $automation->run();
 
 // Erwartete Beispieldaten, keine Bedingungen im Anwendungshandler:
 // context.contact.primaryEmail = anna@old.example; anna@new.example ist zusätzlicher Alias.
-// context.contact.id = anna-mueller-e<8 Zufallszeichen>; context.identity.aliasAdded = true.
+// context.contact.id = anna-mueller-e<8 Zufallszeichen>; context.contactResolution.aliasAdded = true.
 // Bei späterer Mail von diesem Alias wird derselbe Kontakt samt Metadaten geladen.
 // Fehlender Sent-Beleg / mehrere mögliche Empfänger / zwei betroffene Kontakte:
 // needsReview() = true, keine neue Zuordnung. Ein bereits bekannter From kann contact liefern.

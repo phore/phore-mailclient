@@ -1,7 +1,7 @@
 <?php
 // Wo gehören Zusatzdaten hin: Kontakt, Gespräch, Nachricht oder Mailbox?
 // Eigenständige Alternative: $client und $database stammen aus dem Setup in 01.
-// Der standardmäßige ReplyIdentityResolver läuft vor dem Handler (explizite Einbindung: 05).
+// Der standardmäßige ReplyContactResolver läuft vor dem Handler (explizite Einbindung: 05).
 // Bekannte From-Aliasadresse → vorhandener Contact, auch ohne Antwortheader.
 // Unbekannter From + verifizierte Antwort auf eigene Sent-Mail → Contact anlegen/finden,
 // ursprünglichen Empfänger als Hauptadresse behalten und From als Alias ergänzen.
@@ -18,12 +18,12 @@ function recordReview(Email $mail, MailContext $context): MailActions
         return MailActions::pass();
     }
 
-    // identity ist das IdentityResult für DIESE Mail: Ergebnis/Belege der Zuordnung,
+    // contactResolution liefert für diese Mail Ergebnis und Belege der Kontaktzuordnung,
     // kein zweiter Kontakt und kein Login-Nachweis. contact ist der gespeicherte Contact.
-    $identity = $context->identity;
+    $resolution = $context->contactResolution;
     $contact = $context->contact;
     // Conflict / OutgoingMissing verlangen Prüfung, auch bei bereits bekanntem From.
-    if ($identity->needsReview()) {
+    if ($resolution->needsReview()) {
         return MailActions::create()->addFlag('phore_review');
     }
     if ($contact === null) {
@@ -64,11 +64,11 @@ function recordReview(Email $mail, MailContext $context): MailActions
 
     // Kontaktweit sofort gespeichert; nach dem ersten set()-Aufruf darf kein pass() mehr folgen.
     $contact->metadata->set('lastReviewedCase', $caseId);
-    // classify() speichert ein frei gewähltes fachliches Label in contact.classification.
-    // Vorher ggf. null; ein neuer Wert ersetzt den alten. Keine KI und keine Mailaktion.
-    $contact->classify('b2b');
-    $classification = $contact->classification; // Jetzt 'b2b', auch für künftige Mails aller Aliase.
-    // Die B2B-Regel in 03 liest genau dieses Feld und verschiebt neue Mails nach B2B.
+    // classification ist ein frei gewählter Metadatenschlüssel dieser Anwendung.
+    // Kein Contact::classify() und kein eingebauter Kundentyp; eigene Methoden zeigt 14.
+    $contact->metadata->set('classification', 'b2b');
+    $classification = $contact->metadata->get('classification'); // Jetzt 'b2b', auch für künftige Mails aller Aliase.
+    // Die B2B-Regel in 03 liest genau diesen Metadatenschlüssel und verschiebt neue Mails nach B2B.
     // Dieser Handler endet dagegen unten; die Änderung startet keine weitere Regel.
 
     // Optionaler globaler Zugriff innerhalb dieses einen Kontos:
@@ -85,10 +85,10 @@ $report = $automation->run();
 
 // Beispiel: Anna (C-1042), primaryEmail=anna@old.example, Thread T17 → case-T17.
 // aliasNames: anna@old.example => 'Anna Müller', anna@new.example => null.
-// identity.status: KnownAddress bei bekanntem From ohne widersprüchlichen Beleg;
+// contactResolution.status: KnownAddress bei bekanntem From ohne widersprüchlichen Beleg;
 // ContactCreated bei erster bestätigter Antwort; AliasAdded bei neu gelerntem Alias.
-// identity.aliasAdded kann auch bei ContactCreated true sein (anderer Antwort-From).
-// Kontakt: lastReviewedCase=case-T17, classification=b2b; customerNumber bleibt C-1042.
+// contactResolution.aliasAdded kann auch bei ContactCreated true sein (anderer Antwort-From).
+// Kontakt: lastReviewedCase=case-T17, metadata.classification=b2b; customerNumber bleibt C-1042.
 // Thread: caseId=case-T17, status=reviewed. Nachricht: reviewed=true und phore_processed.
 // Mailbox: lastReviewedThread=T17. sameContact.id entspricht contactId.
 // $messages enthält nur Mitglieder dieses Threads; $contactMessages auch andere Gespräche mit Anna.

@@ -7,11 +7,11 @@
 #[OnFolderAutomation(folder: 'Customers', flag: 'classify_b2b')]
 function classifyB2b(Email $mail, MailContext $context): MailActions
 {
-    if ($context->identity->needsReview() || $context->contact === null) {
+    if ($context->contactResolution->needsReview() || $context->contact === null) {
         return MailActions::create()->addFlag('phore_review');
     }
 
-    $context->contact->classify('b2b');
+    $context->contact->metadata->set('classification', 'b2b');
     return MailActions::create()
         ->removeFlag('classify_b2b')
         ->moveTo('B2B', reprocess: true);

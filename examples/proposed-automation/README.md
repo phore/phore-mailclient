@@ -19,13 +19,15 @@ Die weiteren Dateien beantworten jeweils eine zusätzliche Frage.
 | [03-incoming.php](03-incoming.php) | Wie trenne ich Prüfbedarf, B2B und Neukontakte? Ersetzt die Inbox-Regel. |
 | [04-outgoing.php](04-outgoing.php) | Wie lege ich Kontakte schon beim Ausgang an? Ergänzung; zwei alternative Sent-Regeln. |
 | [05-first-reply.php](05-first-reply.php) | Wie binde ich den Resolver ein und lerne Antwortaliase? Unabhängige Alternative. |
-| [06-metadata.php](06-metadata.php) | Wann sind contact/identity gesetzt, welche Aliase gehören dazu und wie wirkt classify? Vollständiger Attribut-Handler; trennt Kontakt, Thread, Nachricht und Mailbox. |
+| [06-metadata.php](06-metadata.php) | Wie lese ich Kontakt/Aliase und pflege Anwendungsmetadaten? Vollständiger Attribut-Handler; trennt Kontakt, Thread, Nachricht und Mailbox. |
 | [07-sender-rule.php](07-sender-rule.php) | Wie bearbeite ich Formularnachrichten? Ergänzt die Regeln aus 03. |
 | [08-attributes.php](08-attributes.php) | Wie registriere oder pausiere ich Klassen-/Methodenregeln? Alternative Registrierung. |
 | [09-custom-storage.php](09-custom-storage.php) | Wie tausche ich ID-Erzeugung oder Speicher aus? Alternative Konstruktoren. |
 | [10-send-reply.php](10-send-reply.php) | Wie sende ich tatsächlich? Ersetzt Konstruktor und Formularregel. |
 | [11-manual-flags.php](11-manual-flags.php) | Wie stößt ein Thunderbird-Tag die nächste Bearbeitung an? Ergänzt 03. |
 | [12-contact-management.php](12-contact-management.php) | Wie ändere ich Kontaktname, Aliasnamen, Adressen und Hauptadresse? Eigenständige, bestätigte Verwaltungsaktion. |
+| [13-contact-resolution.php](13-contact-resolution.php) | Woher kommt ContactResolution und wie behandle ich alle sechs Ergebnisse? Eigenständige Inbox-Alternative. |
+| [14-typed-metadata.php](14-typed-metadata.php) | Wie definiere und verbinde ich eigene Metadatenmethoden? Alternative mit CustomerMetadata und typisiertem Handler. |
 
 ## Gemeinsamer Kontext
 
@@ -89,7 +91,7 @@ geprüft. Fehler stoppen die Kette und lassen Arbeit offen. Die bestehende
 
 | Zugriff | Bedeutung |
 |---|---|
-| `$context->identity` | Zuordnungsergebnis für diese Mail: Status, Kontakt und Belege; kein Benutzerkonto |
+| `$context->contactResolution` | Zuordnungsergebnis für diese Mail: Status, Kontakt und Belege; kein Benutzerkonto |
 | `$context->contact` | Zugeordnete externe Person (Contact oder null), mit stabiler ID und Aliasadressen |
 | `$context->thread` | Gespräch dieser Mail; Nachrichten und Thread-Metadaten |
 | `$context->metadata` | Gespeicherte Zusatzwerte genau dieser Nachricht |
@@ -110,3 +112,35 @@ Bekannte, verifizierte Verschiebungen erhalten die Nachrichtenmetadaten.
 Eine Kopie bekommt eigene, zunächst leere Nachrichtenmetadaten; ein sicher zugeordneter
 Thread und Kontakt können geteilt bleiben. Fehlende/mehrdeutige Zuordnung nach manuellem
 Verschieben oder Migration wird nicht anhand der Message-ID geraten (Vertrags-§ 7.3).
+
+## Kontaktauflösung verstehen
+
+`contactResolution` beantwortet, wie diese Nachricht einem Kontakt zugeordnet wurde.
+`ReplyContactResolver` wird über `contactResolver:` eingebunden; ohne Angabe ist er Standard.
+Er arbeitet vor dem Handler mit dem ContactStore, Antwortheadern und live geprüften Sent-Belegen.
+`contact` liefert die Person, `contactResolution` erklärt Zuordnung und Prüfbedarf.
+
+| Status | Herkunft | Was die Anwendung tun sollte |
+|---|---|---|
+| Unknown | Absender unbekannt, kein zulässiger Antwortbeleg | Erstkontaktbearbeitung; keinen Kontakt blind anlegen |
+| KnownAddress | From ist ein gespeicherter Alias | Vorhandene Kontaktdaten für die Regeln verwenden |
+| ContactCreated | Erste verifizierte Antwort hat Kontakt angelegt | Fachlich einordnen; keine zweite Anlage |
+| AliasAdded | Verifizierte Antwort ergänzt bestehenden Kontakt | Denselben Kontakt weiterverwenden; Hauptadresse behalten |
+| Conflict | Mehrdeutige Belege/Empfänger oder verschiedene Kontakte | Manuell prüfen; nicht automatisch zusammenführen |
+| OutgoingMissing | Referenzierter Ausgang nach Live-Suche nicht in Sent | Beleg/Ordner prüfen; nach Klärung ausdrücklich erneut freigeben |
+
+Bei den letzten beiden Fällen kann `contact` trotzdem gesetzt sein; zuerst
+`needsReview()` beachten. Technische Zugriffsfehler sind Fehler im RunReport und kein
+OutgoingMissing. Beispiel 13 zeigt alle Zweige, konkrete Ergebnisse und Wiederaufnahme.
+Für Sent gilt Empfänger-Lookup: ein bekannter Einzeladressat ergibt KnownAddress,
+ein unbekannter oder kein eindeutiger Einzeladressat Unknown; mehrere Empfänger stehen
+in `recipientContacts` (Beispiel 04). Die vollständigen Feldregeln stehen in Vertrags-§ 6.1.
+
+## Eigene Metadatentypen
+
+Klassifizierung ist vollständig Anwendungslogik: `metadata->set('classification', 'b2b')`
+oder eine eigene Methode auf `CustomerMetadata`. Contact hat kein eingebautes classify().
+Beispiel 14 zeigt Definition, `contactMetadata: CustomerMetadata::class`, Handlerannotation
+und Verwendung zusammen. Für Nachrichten, Threads und Mailboxen gelten entsprechend
+`messageMetadata`, `threadMetadata` und `mailboxMetadata`; Standard bleibt MetadataBag.
+PHPDoc-Typen unterstützen statische Analyse; die tatsächliche Klasse kommt aus der Konfiguration.

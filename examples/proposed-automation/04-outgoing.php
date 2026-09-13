@@ -11,8 +11,8 @@ $automation->onFolder(Folder::Sent)->addAutomation(
     handle: function (Email $mail, MailContext $context): MailActions {
         // Unmittelbarer Store-Schreibzugriff: einzigen Empfänger anlegen oder vorhandenen laden.
         $contact = $context->createContactForRecipient();
-        if ($contact->classification === null) {
-            $contact->classify('new_contact');
+        if ($contact->metadata->get('classification') === null) {
+            $contact->metadata->set('classification', 'new_contact');
         }
         $contact->metadata->set('source', 'sent_folder');
         // complete() beendet die Kette ohne weitere Mailaktion; die Engine setzt phore_processed.

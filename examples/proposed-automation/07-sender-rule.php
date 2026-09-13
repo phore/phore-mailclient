@@ -18,4 +18,4 @@ $automation->onFolder(Folder::Inbox)->addAutomation(
 
 // forms@example.org sendet einen Kontaktvorschlag → Antwortentwurf in Drafts,
 // Eingang mit phore_review + processed in FormRequests.
-// Adressen aus dem Formularinhalt werden dadurch weder Benutzer noch Aliase.
+// Adressen aus dem Formularinhalt werden dadurch weder Kontakt noch Aliase.

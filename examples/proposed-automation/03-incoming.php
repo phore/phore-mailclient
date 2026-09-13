@@ -18,8 +18,8 @@ $automation->onFolder(Folder::Inbox)->addAutomation(
     matches: fn (Email $mail, MailContext $context): bool => true,
     handle: function (Email $mail, MailContext $context): MailActions {
         // Variante: Zuständigkeit wird hier erst im Handler entschieden.
-        // Vor pass() keine Mail- oder Benutzeränderungen ausführen.
-        if ($context->user?->classification !== 'b2b') {
+        // Vor pass() keine Mail- oder Kontaktänderungen ausführen.
+        if ($context->contact?->classification !== 'b2b') {
             return MailActions::pass();
         }
         return MailActions::create()->moveTo('B2B', reprocess: true);
@@ -28,7 +28,7 @@ $automation->onFolder(Folder::Inbox)->addAutomation(
 
 $automation->onFolder(Folder::Inbox)->addAutomation(
     priority: 100,
-    matches: fn (Email $mail, MailContext $context): bool => $context->user === null,
+    matches: fn (Email $mail, MailContext $context): bool => $context->contact === null,
     handle: fn (Email $mail, MailContext $context): MailActions =>
         MailActions::create()->addFlag('new_contact')->moveTo('NewContacts'),
 );
@@ -47,7 +47,7 @@ $automation->onFolder('B2B')->addAutomation(
 
 // Ergebnis nach dem run() aus 01:
 // Annas B2B-Mail liegt zunächst ohne processed in B2B; erst der nächste run() setzt b2b_ready.
-// Unbekannte unverknüpfte Mail → NewContacts + new_contact + processed, weiterhin kein Benutzer.
+// Unbekannte unverknüpfte Mail → NewContacts + new_contact + processed, weiterhin kein Kontakt.
 // Bekannter Privatkunde → Customers; widersprüchliche Antwortzuordnung → Review.
 // Beim unbekannten Absender liefert der B2B-Handler pass(): danach greift die NewContacts-Regel.
 // pass() setzt kein processed. Lehnt die gesamte Kette ab, setzt die Engine es als geprüft.

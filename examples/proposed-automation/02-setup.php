@@ -6,7 +6,7 @@ $database = new PDO('sqlite:/var/lib/app/customer-mail.sqlite');
 $automation = new MailAutomation(client: $client, storage: $database);
 
 // Ergebnis: neuer Speicherort, dieselbe Verbindung und dieselben Ordner wie im Client.
-// Für Folgeläufe denselben Pfad verwenden, damit Cursor, Benutzer und Historie erhalten bleiben.
+// Für Folgeläufe denselben Pfad verwenden, damit Cursor, Kontakt und Historie erhalten bleiben.
 // Folder::Inbox, Sent, Drafts, Trash und Junk werden auf Client-Ordner abgebildet;
 // ein String wie 'Customers' bezeichnet den exakten Ordnernamen in diesem Konto.
 //

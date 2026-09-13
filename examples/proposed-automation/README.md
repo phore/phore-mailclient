@@ -2,14 +2,14 @@
 
 **Entwurfsstatus:** Diese Reihe zeigt vorgeschlagene PHP-8.5-Anwendungsausschnitte.
 Die Automation-Typen sind noch nicht implementiert. Die Dateien sind keine ausführbaren
-Skripte und werden nicht nacheinander eingebunden; Jede PHP-Datei beginnt mit `<?php`; Imports und weiterer Dateirahmen sind
+Skripte und werden nicht nacheinander eingebunden. Jede PHP-Datei beginnt mit `<?php`; Imports und weiterer Dateirahmen sind
 bewusst ausgelassen. Der [API-Vertrag](../../proposals/2026-09-13-mail-automation.md)
 beschreibt die geplante Implementierung und ihre Grenzen.
 
 Beginne mit [01: Post sortieren](01-overview.php). Der abgeschlossene Standardfall
 verbindet den Speicher, registriert eine Inbox-Regel und verarbeitet die Post.
 `MailAutomation` verwaltet Synchronisation und Zustand, `MailContext` liefert
-Benutzerwissen, `MailActions` beschreibt die beabsichtigten Mailänderungen.
+Kontaktwissen, `MailActions` beschreibt die beabsichtigten Mailänderungen.
 Die weiteren Dateien beantworten jeweils eine zusätzliche Frage.
 
 | Datei | Leserfrage / Einbindung |
@@ -17,9 +17,9 @@ Die weiteren Dateien beantworten jeweils eine zusätzliche Frage.
 | [01-overview.php](01-overview.php) | Wie sortiere ich Post mit der Basiskonfiguration? Vollständiger Einstieg. |
 | [02-setup.php](02-setup.php) | Wo liegen Verbindung, Ordnerkonfiguration und Zustand? Ersetzt das Setup. |
 | [03-incoming.php](03-incoming.php) | Wie trenne ich Prüfbedarf, B2B und Neukontakte? Ersetzt die Inbox-Regel. |
-| [04-outgoing.php](04-outgoing.php) | Wie lege ich Benutzer schon beim Ausgang an? Ergänzung; zwei alternative Sent-Regeln. |
+| [04-outgoing.php](04-outgoing.php) | Wie lege ich Kontakte schon beim Ausgang an? Ergänzung; zwei alternative Sent-Regeln. |
 | [05-first-reply.php](05-first-reply.php) | Wie binde ich den Resolver ein und lerne Antwortaliase? Unabhängige Alternative. |
-| [06-metadata.php](06-metadata.php) | Wie pflege ich Klassifizierung und lese Historie? Ersetzt einen Handlerzweig aus 05. |
+| [06-metadata.php](06-metadata.php) | Wie pflege ich Klassifizierung und lese Historie? Vollständiger Attribut-Handler; trennt Kontakt, Thread, Nachricht und Mailbox. |
 | [07-sender-rule.php](07-sender-rule.php) | Wie bearbeite ich Formularnachrichten? Ergänzt die Regeln aus 03. |
 | [08-attributes.php](08-attributes.php) | Wie registriere oder pausiere ich Klassen-/Methodenregeln? Alternative Registrierung. |
 | [09-custom-storage.php](09-custom-storage.php) | Wie tausche ich ID-Erzeugung oder Speicher aus? Alternative Konstruktoren. |
@@ -83,3 +83,25 @@ Vor `pass()` darf der Handler keine Änderungen vornehmen; sofort gespeicherte M
 werden nicht zurückgerollt. Wenn alle Regeln ablehnen, markiert die Engine die Mail als
 geprüft. Fehler stoppen die Kette und lassen Arbeit offen. Die bestehende
 `reprocess: true`-Variante gibt das Ziel für den nächsten Lauf frei.
+
+## Kontext und Metadaten
+
+| Zugriff | Bedeutung |
+|---|---|
+| `$context->contact` | Zugeordnete externe Person (Contact oder null), mit stabiler ID und Aliasadressen |
+| `$context->thread` | Gespräch dieser Mail; Nachrichten und Thread-Metadaten |
+| `$context->metadata` | Gespeicherte Zusatzwerte genau dieser Nachricht |
+| `$context->mailbox` | Gemeinsame Dienste und Metadaten des angebundenen Kontos |
+| `$context->mailbox->contacts` | ContactStore für globale Kontaktsuche/-verwaltung |
+| `$context->mailbox->mailHistory` | Nachrichtenhistorie über mehrere Gespräche, etwa forContact(id) |
+
+Kontakt, Thread und Mailbox besitzen ebenfalls `metadata`. Überall liefert
+`get(key)` bei fehlendem Schlüssel null; `set(key, value)` speichert sofort.
+Die Ebenen vererben oder kopieren keine Werte untereinander. Threads können mehrere
+Kontakte enthalten; eine Thread-Zuordnung beweist keine Identität. Beispiel 06 zeigt
+Registrierung, Zugriff und Ergebnis vollständig.
+
+Bekannte, verifizierte Verschiebungen erhalten die Nachrichtenmetadaten.
+Eine Kopie bekommt eigene, zunächst leere Nachrichtenmetadaten; ein sicher zugeordneter
+Thread und Kontakt können geteilt bleiben. Fehlende/mehrdeutige Zuordnung nach manuellem
+Verschieben oder Migration wird nicht anhand der Message-ID geraten (Vertrags-§ 7.3).

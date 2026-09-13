@@ -7,15 +7,14 @@ declare(strict_types=1);
 // Ziel: Ein Thunderbird-Schlagwort klassifiziert einen bekannten Benutzer als B2B.
 use Phore\MailClient\Email;
 use Phore\MailClient\Automation\{MailActions, MailAutomation, MailContext};
-use Phore\MailClient\Automation\Attributes\{Mailbox, OnFlagAdded};
+use Phore\MailClient\Automation\Attributes\{OnFlagAdded};
 
-// Voraussetzung: $automation kennt "support", Customers und die normale B2B-Zielregel.
+// Voraussetzung: $automation kennt Customers und die normale B2B-Zielregel.
 assert($automation instanceof MailAutomation); // Registriert Regeln und überwacht Flagänderungen.
 
-// Mailbox bindet den Postfachschlüssel; OnFlagAdded reagiert auf dieses neue Keyword
+// OnFlagAdded reagiert auf dieses neue Keyword
 // im genannten folder, auch wenn die Nachricht schon processed ist. id ist die Regelkennung.
 // Dies ist die registrierte Callback-Funktion selbst, keine umschließende Demo-Funktion.
-#[Mailbox('support')]
 #[OnFlagAdded(id: 'manual.b2b', folder: 'Customers', flag: 'classify_b2b')]
 function classifyB2b(Email $mail, MailContext $context): MailActions
 {

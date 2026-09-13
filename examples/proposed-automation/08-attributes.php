@@ -7,20 +7,18 @@ declare(strict_types=1);
 // Ziel: Dieselben Eingangs-/Ausgangsregeln als PHP-Attribute an einer Regelklasse registrieren.
 use Phore\MailClient\Email;
 use Phore\MailClient\Automation\{MailActions, MailAutomation, MailContext};
-use Phore\MailClient\Automation\Attributes\{Mailbox, OnIncoming, OnOutgoing, OnFolder};
+use Phore\MailClient\Automation\Attributes\{OnInboxMessage, OnSentMessage, OnFolder};
 
-// Voraussetzung: Anwendung stellt $automation; "support" und der Ordner Invoices existieren.
+// Voraussetzung: Anwendung stellt $automation mit Client bereit; Invoices existiert.
 // MailAutomation entdeckt die Attribute explizit registrierter Regelobjekte.
 assert($automation instanceof MailAutomation);
 
-// Mailbox bindet die Regeln an den registrierten Postfachschlüssel.
 // Diese Klasse ist die tatsächlich registrierte API-Regel, keine Demo-Hilfsklasse.
-#[Mailbox('support')]
 final class InvoiceRules
 {
-    // OnIncoming prüft den Betreff im Hauptordner; subjectContains ist ein Teilstringfilter.
+    // OnInboxMessage prüft den Betreff im Hauptordner; subjectContains ist ein Teilstringfilter.
     // id identifiziert die Regel, priority legt die Reihenfolge fest (höher zuerst).
-    #[OnIncoming(id: 'invoice.route', priority: 100, subjectContains: 'Rechnung')]
+    #[OnInboxMessage(id: 'invoice.route', priority: 100, subjectContains: 'Rechnung')]
     public function route(Email $mail, MailContext $context): MailActions
     {
         // Email ist der Eingang; MailContext enthält user (MailUser|null) samt Metadaten.
@@ -29,8 +27,8 @@ final class InvoiceRules
         return MailActions::create()->addFlag('invoice')->moveTo('Invoices');
     }
 
-    // OnOutgoing reagiert auf neue Sent-Beobachtungen; hier wird Benutzeranlage aktiviert.
-    #[OnOutgoing(id: 'recipient.create', priority: 0)]
+    // OnSentMessage reagiert auf neue Sent-Beobachtungen; hier wird Benutzeranlage aktiviert.
+    #[OnSentMessage(id: 'recipient.create', priority: 0)]
     public function sent(Email $mail, MailContext $context): MailActions
     {
         // recipientUsers ordnet externe Empfängeradressen MailUser|null zu.
@@ -48,7 +46,6 @@ final class InvoiceRules
 
 // OnFolder registriert die normale Kette eines bestehenden Ordners.
 // Ein Klassentrigger bindet __invoke als Handler; hier ist die aufrufbare Klasse selbst die API.
-#[Mailbox('support')]
 #[OnFolder(id: 'invoice.ready', folder: 'Invoices', priority: 0)]
 final class InvoiceReady
 {

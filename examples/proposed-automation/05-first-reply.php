@@ -16,9 +16,9 @@ assert($reply instanceof Email);
 // Sent enthält eindeutig <out-1@example.org> an "Anna Müller <anna@old.example>".
 // Noch kein Benutzer vorhanden; kein Ausgangsfilter hat ihn vorab angelegt.
 
-// learnAliasFromReply prüft den Ausgang in "support"/Sent, legt den Empfänger an
+// learnAliasFromReply prüft den Ausgang in dem Sent-Ordner des Clients, legt den Empfänger an
 // und lernt die abweichende Antwortadresse. MailAutomation ruft dies normalerweise intern auf.
-$result = $resolver->learnAliasFromReply('support', $reply);
+$result = $resolver->learnAliasFromReply($reply);
 
 // IdentityResult erklärt die Zuordnung; user ist MailUser|null, aliasAdded ein bool.
 assert($result instanceof IdentityResult);

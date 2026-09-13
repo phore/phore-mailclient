@@ -8,15 +8,15 @@ declare(strict_types=1);
 use Phore\MailClient\Email;
 use Phore\MailClient\Automation\{MailAutomation, MailActions, MailContext};
 
-// Voraussetzung: $automation hat "support" samt eigenem Absender und Sent-Ordner registriert.
+// Voraussetzung: $automation verwendet den bereits konfigurierten Client.
 // MailAutomation synchronisiert Sent vor den Eingängen.
 assert($automation instanceof MailAutomation);
 
-// onOutgoing wählt neue beobachtete Ausgänge; add registriert die erste passende Regel.
+// onSentMessage wählt neue beobachtete Ausgänge; addAutomation registriert die erste passende Regel.
 // id identifiziert sie, priority steuert die Reihenfolge, matches ist eine reine Bedingung.
 // Email ist der Ausgang; MailContext liefert recipientUsers (Adresse => MailUser|null).
 // handle wird erst nach einem Treffer aufgerufen und gibt MailActions zurück.
-$automation->onOutgoing('support')->add(
+$automation->onSentMessage()->addAutomation(
     id: 'outgoing.create-recipient', priority: 0,
     matches: fn (Email $mail, MailContext $context): bool => count($context->recipientUsers) === 1,
     handle: function (Email $mail, MailContext $context): MailActions {

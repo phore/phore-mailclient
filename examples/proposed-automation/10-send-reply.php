@@ -14,18 +14,13 @@ assert($client instanceof MailClient); // MailClient ermöglicht IMAP-Zugriff.
 assert($sender instanceof DraftSender); // DraftSender sendet und legt die finale Mail in Sent ab.
 
 // MailAutomation erstellt die Stores aus storage; sender aktiviert den optionalen echten Versand.
-$automation = new MailAutomation(storage: $database, sender: $sender);
+$automation = new MailAutomation(client: $client, storage: $database, sender: $sender);
 
-// addMailbox benennt Konto und Ordner; ownAddresses sind unsere erlaubten Ausgangsadressen.
-$automation->addMailbox(
-    'support', $client,
-    ownAddresses: ['support@example.org'],
-    incomingFolder: 'INBOX', sentFolder: 'Sent',
-);
+// Verbindung, Absender und Ordner stammen ausschließlich aus dem übergebenen Client.
 
-// onIncoming wählt Eingänge. add registriert id, priority und reine matches-Bedingung.
+// onInboxMessage wählt Eingänge. addAutomation registriert id, priority und reine matches-Bedingung.
 // Email.from liefert Autoren; getAddress die nackte Adresse. MailContext enthält Benutzerkontext.
-$automation->onIncoming('support')->add(
+$automation->onInboxMessage()->addAutomation(
     id: 'form.send-reply', priority: 100,
     matches: fn (Email $mail, MailContext $context): bool =>
         count($mail->from()) === 1 && $mail->from()[0]->getAddress() === 'forms@example.org',

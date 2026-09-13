@@ -8,17 +8,17 @@ declare(strict_types=1);
 use Phore\MailClient\Email;
 use Phore\MailClient\Automation\{MailAutomation, MailActions, MailContext};
 
-// Voraussetzung: $automation überwacht "support"; B2B, Review, NewContacts, Customers existieren.
+// Voraussetzung: $automation verwendet den Client; B2B, Review, NewContacts, Customers existieren.
 // MailAutomation registriert Regeln und verwaltet deren Postfachzustand.
 assert($automation instanceof MailAutomation);
 
-// onIncoming wählt den Hauptordner. add registriert eine Regel mit eindeutiger id.
+// onInboxMessage wählt den Hauptordner. addAutomation registriert eine Regel mit eindeutiger id.
 // priority: höhere Zahl zuerst; matches prüft ohne Änderungen; der erste Treffer gewinnt.
 // Email ist die Nachricht, MailContext enthält die bereits aufgelöste Benutzerzuordnung.
 // needsReview erkennt widersprüchliche oder fehlende Ausgangsbelege.
 // handle liefert MailActions: create beginnt die Aktionsliste, addFlag ergänzt ein Keyword,
 // moveTo verschiebt im selben Konto; nach Erfolg setzt die Engine phore_processed.
-$automation->onIncoming('support')->add(
+$automation->onInboxMessage()->addAutomation(
     id: 'incoming.review', priority: 300,
     matches: fn (Email $mail, MailContext $context): bool => $context->identity->needsReview(),
     handle: fn (Email $mail, MailContext $context): MailActions =>
@@ -27,7 +27,7 @@ $automation->onIncoming('support')->add(
 
 // user ist MailUser|null; classification ist die gespeicherte fachliche Kategorie.
 // reprocess: true entfernt im Ziel processed und verschiebt dessen Verarbeitung in den nächsten Lauf.
-$automation->onIncoming('support')->add(
+$automation->onInboxMessage()->addAutomation(
     id: 'incoming.b2b', priority: 200,
     matches: fn (Email $mail, MailContext $context): bool => $context->user?->classification === 'b2b',
     handle: fn (Email $mail, MailContext $context): MailActions =>
@@ -35,7 +35,7 @@ $automation->onIncoming('support')->add(
 );
 
 // user=null bedeutet unbekannter Absender. Die Ablage erzeugt keinen Benutzer.
-$automation->onIncoming('support')->add(
+$automation->onInboxMessage()->addAutomation(
     id: 'incoming.unknown', priority: 100,
     matches: fn (Email $mail, MailContext $context): bool => $context->user === null,
     handle: fn (Email $mail, MailContext $context): MailActions =>
@@ -43,14 +43,14 @@ $automation->onIncoming('support')->add(
 );
 
 // Die letzte Regel übernimmt bekannte Benutzer ohne B2B-Klassifizierung.
-$automation->onIncoming('support')->add(
+$automation->onInboxMessage()->addAutomation(
     id: 'incoming.other-known', priority: 0,
     matches: fn (Email $mail, MailContext $context): bool => true,
     handle: fn (Email $mail, MailContext $context): MailActions => MailActions::create()->moveTo('Customers'),
 );
 
 // onFolder registriert die normale Regelkette des Zielordners.
-$automation->onFolder('support', 'B2B')->add(
+$automation->onFolder('B2B')->addAutomation(
     id: 'b2b.ready', priority: 0,
     matches: fn (Email $mail, MailContext $context): bool => true,
     handle: fn (Email $mail, MailContext $context): MailActions => MailActions::create()->addFlag('b2b_ready'),

@@ -1,3 +1,4 @@
+<?php
 // Neue Post nach Kundentyp ablegen
 // $client: verbundener MailClient aus dem Bootstrap der Anwendung.
 // Er liefert Absender und Ordnernamen; B2B und Review existieren im selben Konto.

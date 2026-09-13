@@ -1,3 +1,4 @@
+<?php
 // Wie sende ich die Formularantwort tatsächlich?
 // Ersetzt den Konstruktor aus 01 UND die Entwurfsregel aus 07.
 // Die übrigen Regeln aus 03 bleiben; anschließend erfolgt deren gemeinsamer run().

@@ -1,3 +1,4 @@
+<?php
 // Wie lernt die erste Antwort eine neue Absenderadresse?
 // Unabhängige Alternative zu 01: verwendet dessen $client und $database,
 // ersetzt Konstruktor und Inbox-Regel; KEINE Ausgangsregel aus 04 hinzufügen.

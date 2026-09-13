@@ -8,6 +8,7 @@
 | 2026-09-13 | dermatthes | §§ 2–3, § 6: Resolver initialisieren/einbinden, Kontext anreichern, Folder-Enum, OnFolderAutomation, optionale automationId und active |
 | 2026-09-13 | dermatthes | § 9: Examples als aufbauende Lesereihe gekürzt, Einbindung und Varianten geklärt, Report-Vertragslücke benannt |
 | 2026-09-13 | dermatthes | §§ 3–6, § 8: Einheitliche Bearbeitet-Sperre, aktuelle Keyword-Bedingungen und explizite Wiederaufnahme |
+| 2026-09-13 | dermatthes | § 9: PHP-Starttag in allen gespeicherten Examples wiederhergestellt |
 
 ## § 1 Status and scope
 
@@ -99,7 +100,7 @@ this same folder chain; there is no separate flag-change event route. Predicates
 Higher priority wins, ties use registration order. Only the first matching handler
 runs per eligible message in its current folder chain. Duplicate IDs/incompatible signatures fail before writes.
 Exceptions are failures, never a fall-through. Unmarked observed messages and deliberate
-marker resets are eligible; a folder event is not proof of new delivery. [geändert]
+marker resets are eligible; a folder event is not proof of new delivery.
 
 First check the current phore_processed keyword. Marked messages skip identity learning,
 predicates, handlers and mail actions. For eligible incoming messages, resolve a known From or learn identity from a verified
@@ -107,19 +108,19 @@ outgoing reply link. MailContext exposes user (?MailUser), users (AliasStore),
 history (MailHistoryStore), identity (IdentityResult), folder and direction.
 For outgoing mail, user is the already known sole external recipient, not ourselves;
 recipientUsers exposes each external recipient mapped to a user or null. For multiple
-recipients, user=null; applications must explicitly address each recipient. [geändert]
+recipients, user=null; applications must explicitly address each recipient.
 
 Class instances, invokable classes and attributed function callables are registered
 with addRules(object|callable). OnFolderAutomation(folder: Folder::Inbox),
 OnFolderAutomation(folder: Folder::Sent) attributes compile to the same rules as builders. Trigger attributes on a class apply
 to __invoke; method attributes apply to that method. Constructor dependencies are
-provided by the application. Do not register one rule through both mechanisms. [geändert]
+provided by the application. Do not register one rule through both mechanisms.
 
 OnFolderAutomation accepts optional flag: string, requiring that keyword to be present
 at evaluation time; it is combined with other filters using AND. The programmatic
 counterpart is MailContext::hasFlag(string $keyword): bool inside matches. Both use
 the current keyword set after the global processed gate, not a remembered flag-added
-event. Thus a keyword set while locked still matches after explicit unlocking. [geändert]
+event. Thus a keyword set while locked still matches after explicit unlocking.
 
 The optional parameter is automationId (camelCase, consistent with the PHP API),
 not a user ID. Without it, class attributes/invokable handlers use the class short name;
@@ -143,17 +144,17 @@ phore_processed is the single global automation gate for every folder, including
 Inbox, Sent, Drafts, Trash and Junk, and every keyword-conditioned rule. If present,
 MailAutomation performs no identity learning, predicates, handlers or mail mutations
 for that message. A successful handler, MailActions::none() or no-match outcome sets
-this same keyword. There is no separate outgoing completion marker. [geändert]
+this same keyword. There is no separate outgoing completion marker.
 
 Synchronization may still read flags/locations and maintain cursors. Sent evidence is
 still read and indexed, including processed Sent messages, so an eligible incoming
 reply can be checked against them. This indexing does not create users or aliases
-or invoke business rules for the marked Sent message. [geändert]
+or invoke business rules for the marked Sent message.
 
 The gate belongs to each concrete message copy, not its Message-ID. Moving/copying
 with phore_processed preserved keeps that destination locked in every folder.
 Unlocking one copy does not unlock another. If copying does not preserve keywords,
-the new unmarked copy is eligible; there is no cross-copy deduplication guarantee. [geändert]
+the new unmarked copy is eligible; there is no cross-copy deduplication guarantee.
 
 Manual workflow: move to the intended folder, set the desired business keyword,
 then remove phore_processed. The next run evaluates the current destination and
@@ -161,26 +162,26 @@ keywords, including old UIDs. Unlocking before moving is allowed but a concurren
 run could process the old location; therefore unlock last. Pending and deferred work
 must recheck current location/flags before evaluation and before applying actions.
 If externally marked in the meantime, skip remaining work without clearing the lock.
-Single-instance processing does not promise atomicity with concurrent mail-client edits. [geändert]
+Single-instance processing does not promise atomicity with concurrent mail-client edits.
 
 MailActions::create()->moveTo('Archive') targets an existing same-account folder;
 normal completion leaves phore_processed on the destination, including for Sent rules.
 addFlag/removeFlag change business keywords. phore_processed is reserved for engine
 completion and explicit external unlocking; attempts to manipulate it through generic
-actions are rejected during action validation. A handler cannot bypass the gate. [geändert]
+actions are rejected during action validation. A handler cannot bypass the gate.
 
 moveTo('Invoices', reprocess: true) is the explicit automatic handoff: move, remove
 phore_processed at the destination and defer its folder chain until the next run.
 It is terminal, cannot target the current folder, and suppresses completion marking
 at the destination. The destination must have a registered chain. This also applies
 to handoffs to or from Sent. Deferred work never executes within the same run.
-Avoid cyclic handoff routes. [geändert]
+Avoid cyclic handoff routes.
 
 Keyword-conditioned rules participate in the same priority order and first-match
 selection as all other folder rules. Setting a business keyword on a processed
 message alone does nothing. Remove phore_processed to re-evaluate the CURRENT
 keyword set; a past flag-added event is neither needed nor replayed.
-Unmarked failures remain pending independently of the sync cursor. [geändert]
+Unmarked failures remain pending independently of the sync cursor.
 
 Initial ordinary scans process ALL unmarked existing messages across every page.
 Initial Sent scans index all existing outgoing evidence, but baseline existing
@@ -192,7 +193,7 @@ rules during the initial Sent scan for unmarked backlog. Persist bootstrap phase
 isInitialSync describes only the first page. Removing phore_processed from a baselined
 Sent message explicitly enables its Sent chain on the next run. processExistingOutgoing
 never overrides an existing phore_processed lock. Existing incoming backlog therefore can
-resolve against existing Sent evidence. [geändert]
+resolve against existing Sent evidence.
 
 UIDVALIDITY changes require explicit resynchronization; network failures never erase
 cursors. Preserved flags allow safe eligibility rebuilding under the chosen simple
@@ -217,7 +218,7 @@ recipient evidence but no MailUser. An outgoing rule may call
 context.createUserForRecipient(?string $email = null): MailUser to enable creation at
 the time outgoing mail is observed. This works only in outgoing context. With one
 external recipient the argument is optional; with several it is required and must
-match an actual recipient. Existing users are reused without overwriting their fields. [geändert]
+match an actual recipient. Existing users are reused without overwriting their fields.
 
 The incoming context's user=null is normal for unsolicited unknown mail. There is no
 automatic user creation merely for receiving, marking, moving or drafting a response.
@@ -249,7 +250,7 @@ incoming message, before predicates/handlers, and assigns
 IdentityResult to context.identity and its user to context.user. Handlers need no resolver call.
 It returns status (Unknown, KnownAddress, UserCreated, AliasAdded, Conflict,
 OutgoingMissing), nullable user, matched outgoing evidence and aliasAdded.
-needsReview() is true for Conflict and OutgoingMissing; isConflict() only for Conflict. [geändert]
+needsReview() is true for Conflict and OutgoingMissing; isConflict() only for Conflict.
 
 Inspect exact In-Reply-To IDs first. Resolve conflicting direct targets as Conflict;
 do not pick an older References entry to escape a conflict or a missing direct target.
@@ -346,7 +347,7 @@ The adapter owns transport and saving the final transmitted message in Sent, inc
 any rewritten Message-ID. The newly sent message is a separate message, initially
 without phore_processed; it does not inherit the source message's automation marker.
 Outgoing rules can process it on a later Sent synchronization. This proposal
-does not introduce a concrete SMTP implementation or claim draft saving is sending. [geändert]
+does not introduce a concrete SMTP implementation or claim draft saving is sending.
 
 For automated form notifications, sender matching is a routing predicate, not proof
 of trust. Treat form content as untrusted. A draft can request human review; AI output
@@ -360,7 +361,8 @@ application excerpts. The entry shows one complete default routing case. Subsequ
 files build on introduced concepts, explicitly replace or extend known code, and show
 outgoing creation, resolver binding, metadata, forms, attributes and advanced adapters.
 Shared type names, prerequisites and design status appear once in the index. The PHP
-fragments intentionally omit file wrappers/imports and are not executable files.
+fragments start with <?php on the first line for PHP recognition, omit additional
+wrappers/imports and are not standalone executable files. [geändert]
 
 Examples separate fixture outcomes from handler conditions, omit redundant type assertions
 and optional defaults, and show when changes occur immediately or on a later run.

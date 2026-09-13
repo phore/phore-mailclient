@@ -2,7 +2,7 @@
 
 **Entwurfsstatus:** Diese Reihe zeigt vorgeschlagene PHP-8.5-Anwendungsausschnitte.
 Die Automation-Typen sind noch nicht implementiert. Die Dateien sind keine ausführbaren
-Skripte und werden nicht nacheinander eingebunden; PHP-Dateirahmen und Imports sind
+Skripte und werden nicht nacheinander eingebunden; Jede PHP-Datei beginnt mit `<?php`; Imports und weiterer Dateirahmen sind
 bewusst ausgelassen. Der [API-Vertrag](../../proposals/2026-09-13-mail-automation.md)
 beschreibt die geplante Implementierung und ihre Grenzen.
 

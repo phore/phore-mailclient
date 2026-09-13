@@ -1,3 +1,4 @@
+<?php
 // Wie bereite ich für Formularnachrichten einen Antwortentwurf vor?
 // Ergänzt die Regeln aus 03 vor run(); FormRequests und der Client-Drafts-Ordner existieren.
 // Priority 250 liegt nach Identitätsprüfung (300) und vor B2B (200).

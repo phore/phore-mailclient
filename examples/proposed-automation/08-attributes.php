@@ -1,3 +1,4 @@
+<?php
 // Wie registriere und pausiere ich Regeln über PHP-Attribute?
 // Alternative zu den programmatischen Regeln: verwendet nur das Setup aus 01.
 // Invoices existiert. Klassenattribute gelten für __invoke; Standard-ID ist der Klassenkurzname.

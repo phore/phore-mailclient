@@ -1,3 +1,4 @@
+<?php
 // Wie ersetze ich ID-Erzeugung oder Speicher ohne eigenes Standard-Setup?
 // Jede Variante ersetzt NUR den Konstruktor aus 01; genau eine auswählen.
 // $client und $database bleiben aus 01, danach dieselben Regeln und run() verwenden.

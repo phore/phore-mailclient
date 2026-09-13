@@ -1,3 +1,4 @@
+<?php
 // Welche Verbindung und welchen Speicher verwendet die Automatisierung?
 // Ersetzt bei anderem Speicherort nur das Setup aus 01; danach folgen Regeln und run().
 // Derselbe $client bleibt für genau ein Konto zuständig.

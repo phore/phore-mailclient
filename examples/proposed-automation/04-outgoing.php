@@ -1,3 +1,4 @@
+<?php
 // Wie lege ich Kontakte bereits beim Beobachten einer gesendeten Mail an?
 // Ergänzt 01 oder 03 vor run(); ohne diese Regel bleibt Anlage bei der ersten Antwort.
 // Sent wird vor Inbox verarbeitet. recipientUsers ordnet externe Empfängeradressen

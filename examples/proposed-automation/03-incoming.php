@@ -1,3 +1,4 @@
+<?php
 // Wie unterscheiden wir Prüfbedarf, B2B, Neukontakte und sonstige Kunden?
 // Ersetzt die Inbox-Regel aus 01, nach dessen Setup und vor dessen run().
 // Zusätzlich existieren Review, B2B, NewContacts und Customers.

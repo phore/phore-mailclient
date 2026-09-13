@@ -1,3 +1,4 @@
+<?php
 // Wie klassifiziere ich einen erkannten Benutzer und lese seine Historie?
 // Ersetzt den erfolgreichen Benutzerzweig im Handler aus 05, nach dessen Review/null-Prüfung.
 // $context stammt aus genau diesem Handler; Stores sind über ihn öffentlich zugänglich.

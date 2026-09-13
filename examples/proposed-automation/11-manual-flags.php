@@ -1,3 +1,4 @@
+<?php
 // Wie gebe ich eine Nachricht für die manuelle B2B-Klassifizierung frei?
 // Ergänzt 03 vor run(), einschließlich dessen B2B-Zielregel.
 // In Thunderbird: nach Customers verschieben, classify_b2b setzen, ZULETZT phore_processed entfernen.

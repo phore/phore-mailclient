@@ -30,9 +30,10 @@ final class FolderSyncTest extends TestCase
             public function metadata(int $uid): array {
                 $this->reads++;
                 if ($this->failRead) { throw new \RuntimeException('Message no longer exists.'); }
-                return ['UID'=>$uid, 'FLAGS'=>$this->messages[$this->folder][$uid], 'BODYSTRUCTURE'=>[]];
+                return ['UID'=>$uid, 'FLAGS'=>$this->messages[$this->folder][$uid], 'BODYSTRUCTURE'=>['TEXT','PLAIN',['CHARSET','UTF-8'],null,null,'7BIT',0,0]];
             }
             public function part(int $uid, string $section, int $maxBytes): string {
+                if ($section !== 'HEADER') { return ''; }
                 return "From: sender@example.org\r\nSubject: Fixture $uid\r\nMessage-ID: <$uid@example.org>\r\n\r\n";
             }
             public function append(string $folder, string $mime): void { throw new \LogicException('Unexpected write.'); }

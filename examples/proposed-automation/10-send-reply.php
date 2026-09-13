@@ -1,39 +1,26 @@
-<?php
-declare(strict_types=1);
-
-// API-ENTWURF: Die Automation-Typen sind noch nicht implementiert.
-// Anwendungsausschnitt mit ausdrücklich vorausgesetzten Objekten; nicht eigenständig ausführbar.
-
-// Folder benennt Standardordner; ihre tatsächlichen Namen stammen aus dem Client.
-// automationId ist optional; active (Standard true) kann diese Regel vorübergehend deaktivieren.
-// Ziel: Eine Antwort ausdrücklich senden statt nur einen Entwurf zu speichern.
-use Phore\MailClient\{Email, MailClient};
-use Phore\MailClient\Automation\{Folder, DraftSender, MailAutomation, MailActions, MailContext};
-
-// Voraussetzungen: SQLite-Verbindung, verbundener IMAP-Client und Versandadapter der Anwendung.
-assert($database instanceof PDO); // PDO ist hier bereits mit SQLite verbunden.
-assert($client instanceof MailClient); // MailClient ermöglicht IMAP-Zugriff.
-assert($sender instanceof DraftSender); // DraftSender sendet und legt die finale Mail in Sent ab.
-
-// MailAutomation erstellt die Stores aus storage; sender aktiviert den optionalen echten Versand.
+// Wie sende ich die Formularantwort tatsächlich?
+// Ersetzt den Konstruktor aus 01 UND die Entwurfsregel aus 07.
+// Die übrigen Regeln aus 03 bleiben; anschließend erfolgt deren gemeinsamer run().
+// $sender ist ein DraftSender aus dem Versand-Bootstrap der Anwendung:
+// send(Email $draft): void übernimmt Transport UND Ablage der finalen Nachricht in Sent.
+// Ein konkreter SMTP-Adapter gehört nicht zum Entwurf; ohne Anwendungadapter ist diese Variante offen.
 $automation = new MailAutomation(client: $client, storage: $database, sender: $sender);
 
-// Verbindung, Absender und Ordner stammen ausschließlich aus dem übergebenen Client.
-
-// onFolder(Folder::Inbox) wählt Eingänge. addAutomation registriert automationId, priority und reine matches-Bedingung.
-// Email.from liefert Autoren; getAddress die nackte Adresse. MailContext enthält Benutzerkontext.
 $automation->onFolder(Folder::Inbox)->addAutomation(
-    automationId: 'form.send-reply', priority: 100,
+    priority: 250,
     matches: fn (Email $mail, MailContext $context): bool =>
         count($mail->from()) === 1 && $mail->from()[0]->getAddress() === 'forms@example.org',
-    // handle liefert MailActions; create beginnt die Liste.
-    // sendReply bereitet die Antwort vor und übergibt sie dem konfigurierten DraftSender.
     handle: fn (Email $mail, MailContext $context): MailActions =>
-        MailActions::create()->sendReply('Bitte bestätigen Sie den Kontaktvorschlag.'),
+        MailActions::create()
+            // Erst beim run() über den Adapter senden, an das tatsächliche Antwortziel der Quellmail.
+            ->sendReply('Bitte bestätigen Sie den Kontaktvorschlag.')
+            ->addFlag('phore_review')
+            ->moveTo('FormRequests'),
 );
 
-// run führt auch den Versand aus; Rückgabe RunReport mit Fehlern, falls der Adapter scheitert.
+// Nach Registrierung der übrigen Regeln aus 03:
 $report = $automation->run();
-// Erwartung: Adapter sendet an das tatsächliche Antwortziel und speichert finale Mail in Sent.
-// Ohne DraftSender schlägt sendReply fehl; Entwurfsspeicherung allein gilt nie als Versand.
-// Kein konkreter SMTP-Adapter ist Teil dieses Entwurfs. Automatische Antworten bewusst aktivieren.
+// Formularnachricht → Antwort versendet und finale Mail in Sent, Eingang in FormRequests.
+// Diese Sent-Mail wird bei einer nachfolgenden Sent-Synchronisierung beobachtet.
+// Fehlender/fehlschlagender Adapter → Fehler im RunReport, Nachricht bleibt zur Verarbeitung offen.
+// Eine Entwurfsspeicherung allein zählt nicht als erfolgreicher Versand.

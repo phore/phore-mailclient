@@ -1,37 +1,23 @@
-<?php
-declare(strict_types=1);
+// Wie ersetze ich ID-Erzeugung oder Speicher ohne eigenes Standard-Setup?
+// Jede Variante ersetzt NUR den Konstruktor aus 01; genau eine auswählen.
+// $client und $database bleiben aus 01, danach dieselben Regeln und run() verwenden.
 
-// API-ENTWURF: Die Automation-Typen sind noch nicht implementiert.
-// Anwendungsausschnitt mit ausdrücklich vorausgesetzten Objekten; nicht eigenständig ausführbar.
+// Variante A: $ids ist der UserIdGenerator aus dem Domain-Bootstrap der Anwendung.
+// Er implementiert generate(?string $displayName, string $primaryEmail): string.
+// Die Anwendung liefert diesen Dienst, die Bibliothek enthält keinen konkreten Custom-Generator.
+$automation = new MailAutomation(client: $client, storage: $database, idGenerator: $ids);
+// Ergebnis: SQLite-Stores bleiben Standard; nur neu angelegte Benutzer erhalten eigene IDs.
+// Bereits gespeicherte IDs bleiben unverändert. Ohne Anpassung: anna-mueller-e<8 Zufallszeichen>.
 
-// Ziel: SQLite-Standard und austauschbare Speicher-/ID-Implementierung gegenüberstellen.
-use Phore\MailClient\MailClient;
-use Phore\MailClient\Automation\{AutomationStorage, MailAutomation, SqliteStorage, UserIdGenerator};
+// Variante B: ersetzt A; expliziter Speicherzugang, etwa um Benutzer außerhalb eines Handlers zu lesen.
+$storage = new SqliteStorage($database);
+$automation = new MailAutomation(client: $client, storage: $storage);
+$users = $storage->users();
+$anna = $users->findByEmail('anna@new.example');
+// Ergebnis: derselbe persistierte Benutzer wie in 05 oder null, falls er noch nicht angelegt ist.
 
-// MailClient enthält die einzige Verbindung samt Absender und Ordnerkonfiguration.
-assert($client instanceof MailClient);
-
-// Voraussetzungen aus der Anwendung; keines dieser Objekte entsteht durch assert.
-// PDO ist eine bestehende SQLite-Verbindung, UserIdGenerator erzeugt dauerhafte Benutzer-IDs.
-assert($database instanceof PDO);
-assert($ids instanceof UserIdGenerator);
-// AutomationStorage stellt state(), users() und history() über Store-Interfaces bereit.
-assert($storage instanceof AutomationStorage);
-
-// MailAutomation erkennt PDO SQLite über storage und erstellt die Standard-Stores intern.
-$standard = new MailAutomation(client: $client, storage: $database);
-
-// Alternative: idGenerator ersetzt nur die ID-Bildung, ohne eigene Stores zu verlangen.
-$customIds = new MailAutomation(client: $client, storage: $database, idGenerator: $ids);
-
-// Alternative: SqliteStorage ist die explizite Implementierung desselben Speichervertrags.
-$sqliteStorage = new SqliteStorage($database, idGenerator: $ids);
-$explicit = new MailAutomation(client: $client, storage: $sqliteStorage);
-
-// Alternative: vorhandene Gesamtimplementierung, beispielsweise mit CRM-Benutzern.
-$custom = new MailAutomation(client: $client, storage: $storage);
-
-// Alle Rückgaben sind MailAutomation, an denselben Client gebunden, noch ohne Regeln.
-// Varianten zur Auswahl: in der echten Anwendung nur eine davon instanziieren.
-// Standard-ID: anna-mueller-e<8 Zufallszeichen>; fehlender Name nutzt den E-Mail-Slug.
-// Ein eigener Generator implementiert generate(?string $displayName, string $primaryEmail).
+// Variante C: ersetzt A/B; $crmStorage ist AutomationStorage aus dem CRM-Bootstrap der Anwendung.
+// Es liefert state(), users() und history() über die Store-Interfaces.
+$automation = new MailAutomation(client: $client, storage: $crmStorage);
+// Ergebnis: dieselben Handler verwenden nun dessen Store-Implementierungen.
+// Einen eigenen ID-Generator in dieser Variante am Store konfigurieren, nicht nochmals an Automation.

@@ -6,6 +6,7 @@
 | 2026-09-13 | dermatthes | § 9: Examples nach aktueller Coding-Basis-Referenz nummeriert, abgeflacht und direkt kommentiert |
 | 2026-09-13 | dermatthes | §§ 2–7, § 9: Eine Client-Verbindung, geerbte Konfiguration, addAutomation, onInboxMessage/onSentMessage und Gesamtbeispiel |
 | 2026-09-13 | dermatthes | §§ 2–3, § 6: Resolver initialisieren/einbinden, Kontext anreichern, Folder-Enum, OnFolderAutomation, optionale automationId und active |
+| 2026-09-13 | dermatthes | § 9: Examples als aufbauende Lesereihe gekürzt, Einbindung und Varianten geklärt, Report-Vertragslücke benannt |
 
 ## § 1 Status and scope
 
@@ -48,7 +49,7 @@ and existing draft/trash configuration plus a Junk-folder mapping on the client.
 without duplicating them in its constructor or example setup. Provider-specific folder
 names are configured once when constructing the client. This proposal does not change
 MailboxConfig JSON or its reference yet; implementation must update that reference
-alongside any added configuration fields. [geändert]
+alongside any added configuration fields.
 
 The supplied client must identify its single sender; if from is absent, initialization
 fails with a clear instruction to configure the client. Never guess from a login name.
@@ -75,7 +76,7 @@ fails clearly. Custom strategies implement IdentityResolver with bind(MailClient
 AutomationStorage): void and resolve(Email): IdentityResult. Binding occurs once;
 resolve performs incoming lookup/allowed learning before predicates and handlers.
 Outgoing contexts only look up recipients; creation remains an explicit outgoing action. ReplyIdentityResolver
-also retains learnAliasFromReply(Email) for explicit specialized use after binding. [neu]
+also retains learnAliasFromReply(Email) for explicit specialized use after binding.
 
 ## § 3 Run and rule semantics
 
@@ -97,7 +98,7 @@ also accepts Folder|string and uses addAutomation. Predicates receive
 Higher priority wins, ties use registration order. Only the first matching handler
 runs per event route. Duplicate IDs/incompatible signatures fail before writes.
 Exceptions are failures, never a fall-through. Unmarked observed messages and deliberate
-marker resets are eligible; a folder event is not proof of new delivery. [geändert]
+marker resets are eligible; a folder event is not proof of new delivery.
 
 Before incoming predicates run, resolve a known From or learn identity from a verified
 outgoing reply link. MailContext exposes user (?MailUser), users (AliasStore),
@@ -110,7 +111,7 @@ Class instances, invokable classes and attributed function callables are registe
 with addRules(object|callable). OnFolderAutomation(folder: Folder::Inbox),
 OnFolderAutomation(folder: Folder::Sent) and OnFlagAdded attributes compile to the same rules as builders. Trigger attributes on a class apply
 to __invoke; method attributes apply to that method. Constructor dependencies are
-provided by the application. Do not register one rule through both mechanisms. [geändert]
+provided by the application. Do not register one rule through both mechanisms.
 
 The optional parameter is automationId (camelCase, consistent with the PHP API),
 not a user ID. Without it, class attributes/invokable handlers use the class short name;
@@ -118,7 +119,7 @@ method handlers use ShortClassName::method and named functions their qualified n
 Anonymous closures receive an internal per-registration ID, stable only for that instance;
 provide automationId for stable cross-run diagnostics. Duplicate inferred or explicit IDs
 fail during registration, including inactive rules; disambiguate with automationId.
-Renaming a class changes its inferred ID but does not reset message processed flags. [neu]
+Renaming a class changes its inferred ID but does not reset message processed flags.
 
 Both addAutomation and trigger attributes accept active: bool = true. With false,
 the rule is registered but neither its predicate nor handler executes. Other active rules
@@ -126,7 +127,7 @@ continue normally. If none matches, normal no-match marking still applies; activ
 is not a folder pause or backlog retention mechanism. Re-enabling affects eligible mail;
 already processed messages require an explicit marker reset to run again. Resolver enrichment
 and Sent indexing are independent of a rule's active setting. Change configuration before
-the next run; no dynamic switching API is required for V1. [neu]
+the next run; no dynamic switching API is required for V1.
 
 ## § 4 Processed flags, moves and reprocessing
 
@@ -215,7 +216,7 @@ uses the fallback immediately. Later name changes never change the ID.
 ReplyIdentityResolver::learnAliasFromReply(Email $email): IdentityResult
 is the explicit learning method used by the default resolver's resolve operation.
 MailAutomation invokes its bound strategy before incoming predicates/handlers and assigns
-IdentityResult to context.identity and its user to context.user. Handlers need no resolver call. [geändert]
+IdentityResult to context.identity and its user to context.user. Handlers need no resolver call.
 It returns status (Unknown, KnownAddress, UserCreated, AliasAdded, Conflict,
 OutgoingMissing), nullable user, matched outgoing evidence and aliasAdded.
 needsReview() is true for Conflict and OutgoingMissing; isConflict() only for Conflict.
@@ -323,13 +324,18 @@ Send actions are deliberately explicit to avoid accidental automatic responses.
 ## § 9 Examples and validation
 
 See the [scenario index](../examples/proposed-automation/README.md) and eleven numbered
-application excerpts starting with an end-to-end example, followed by setup, incoming B2B routing, unknown contacts, Sent
-rules, reply/alias learning, metadata/classification, sender-specific drafts, attributes,
-custom storage, actual sending and manual flag workflows. Each excerpt is flat,
-asserts supplied object types before use, explains API elements at first occurrence
-and states concrete results. Numbers specify reading order, not execution dependencies.
-Only actual registered callbacks/attribute handlers use functions or methods.
-Namespaces under Phore\MailClient\Automation are proposed, not currently shipped.
+application excerpts. The entry shows one complete default routing case. Subsequent
+files build on introduced concepts, explicitly replace or extend known code, and show
+outgoing creation, resolver binding, metadata, forms, attributes and advanced adapters.
+Shared type names, prerequisites and design status appear once in the index. The PHP
+fragments intentionally omit file wrappers/imports and are not executable files. [geändert]
+
+Examples separate fixture outcomes from handler conditions, omit redundant type assertions
+and optional defaults, and show when changes occur immediately or on a later run.
+Metadata examples obtain stores from the actual MailContext; explicit SqliteStorage shows
+access outside handlers. External ID/storage/sender services have named application origins.
+The concrete public RunReport fields/error-access API remain unspecified and must be
+defined before runnable error-handling examples can be delivered. [neu]
 
 Future implementation needs side-effect-free reading, permanent keyword checks,
 general same-account moves, Sent lookup and identity/header access, SQLite tables,

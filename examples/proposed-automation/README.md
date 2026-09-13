@@ -1,73 +1,62 @@
-# Proposed MailAutomation application examples
+# MailAutomation: Post sortieren und Kontakte wiedererkennen
 
-**API design only.** The Automation classes, stores and attributes shown here are not
-implemented by this PR. These are numbered, flat application excerpts, not runnable
-demos. Numbering specifies reading order, not execution dependencies. Each file
-states its prerequisites with explicit instanceof assertions before use. See the [contract](../../proposals/2026-09-13-mail-automation.md).
+**Entwurfsstatus:** Diese Reihe zeigt vorgeschlagene PHP-8.5-Anwendungsausschnitte.
+Die Automation-Typen sind noch nicht implementiert. Die Dateien sind keine ausführbaren
+Skripte und werden nicht nacheinander eingebunden; PHP-Dateirahmen und Imports sind
+bewusst ausgelassen. Der [API-Vertrag](../../proposals/2026-09-13-mail-automation.md)
+beschreibt die geplante Implementierung und ihre Grenzen.
 
-| File | Scenarios |
+Beginne mit [01: Post sortieren](01-overview.php). Der abgeschlossene Standardfall
+verbindet den Speicher, registriert eine Inbox-Regel und verarbeitet die Post.
+`MailAutomation` verwaltet Synchronisation und Zustand, `MailContext` liefert
+Benutzerwissen, `MailActions` beschreibt die beabsichtigten Mailänderungen.
+Die weiteren Dateien beantworten jeweils eine zusätzliche Frage.
+
+| Datei | Leserfrage / Einbindung |
 |---|---|
-| [01-overview.php](01-overview.php) | Complete flow: client/storage, outgoing user creation, incoming routing and result |
-| [02-setup.php](02-setup.php) | One configured MailClient plus storage; inherited sender/folders |
-| [03-incoming.php](03-incoming.php) | Route by known B2B classification; unknown unsolicited mail; conflict review; folder routing |
-| [04-outgoing.php](04-outgoing.php) | Observe Sent; explicitly create recipient now; default first-reply alternative; multiple recipients |
-| [05-first-reply.php](05-first-reply.php) | Live Sent verification, changed From alias, preserved primary; unknown/missing outgoing outcomes |
-| [06-metadata.php](06-metadata.php) | Persist classification/metadata; search aliases and read history |
-| [07-sender-rule.php](07-sender-rule.php) | Specific sender/form mail; contact proposal as draft; explicitly configured sending alternative |
-| [08-attributes.php](08-attributes.php) | Equivalent attribute API; method and invokable class; subject and ordinary folder rules |
-| [09-custom-storage.php](09-custom-storage.php) | Direct PDO default, ID-generator injection, explicit SQLite implementation, custom interfaces |
-| [10-send-reply.php](10-send-reply.php) | Explicit sending with a provided DraftSender adapter |
-| [11-manual-flags.php](11-manual-flags.php) | Attributed function: Thunderbird flag classifies a known user and schedules B2B processing |
+| [01-overview.php](01-overview.php) | Wie sortiere ich Post mit der Basiskonfiguration? Vollständiger Einstieg. |
+| [02-setup.php](02-setup.php) | Wo liegen Verbindung, Ordnerkonfiguration und Zustand? Ersetzt das Setup. |
+| [03-incoming.php](03-incoming.php) | Wie trenne ich Prüfbedarf, B2B und Neukontakte? Ersetzt die Inbox-Regel. |
+| [04-outgoing.php](04-outgoing.php) | Wie lege ich Benutzer schon beim Ausgang an? Ergänzung; zwei alternative Sent-Regeln. |
+| [05-first-reply.php](05-first-reply.php) | Wie binde ich den Resolver ein und lerne Antwortaliase? Unabhängige Alternative. |
+| [06-metadata.php](06-metadata.php) | Wie pflege ich Klassifizierung und lese Historie? Ersetzt einen Handlerzweig aus 05. |
+| [07-sender-rule.php](07-sender-rule.php) | Wie bearbeite ich Formularnachrichten? Ergänzt die Regeln aus 03. |
+| [08-attributes.php](08-attributes.php) | Wie registriere oder pausiere ich Klassen-/Methodenregeln? Alternative Registrierung. |
+| [09-custom-storage.php](09-custom-storage.php) | Wie tausche ich ID-Erzeugung oder Speicher aus? Alternative Konstruktoren. |
+| [10-send-reply.php](10-send-reply.php) | Wie sende ich tatsächlich? Ersetzt Konstruktor und Formularregel. |
+| [11-manual-flags.php](11-manual-flags.php) | Wie stößt ein Thunderbird-Tag die nächste Bearbeitung an? Ergänzt 03. |
 
-Read 01-overview.php first for the complete flow and short API overview, then 02-setup.php. In an application, insert the registrations from 03-incoming.php
-and optionally 04-outgoing.php before run(). Do not include these files in sequence;
-each is an independent excerpt with its own prerequisites.
-Without an outgoing creation rule, users are created only on their first verified
-reply. run() indexes the supplied client's Sent folder either way. The recipient, never our own sender,
-is the new user. The originally addressed email remains primary when a reply arrives
-from a different alias.
+## Gemeinsamer Kontext
 
-The attribute application is an alternative to the programmatic one; do not register
-both sets as duplicate business rules. The optional sender-specific registration in 07-sender-rule.php (priority 250) runs
-after identity review (300) and before ordinary B2B/unknown routing. Its reply draft
-uses the actual source reply target; it does not automatically send to an address
-found inside the form content.
+`$client` ist ein verbundener `Phore\MailClient\MailClient` aus dem Bootstrap
+der aufrufenden Anwendung. Die Automation übernimmt genau dessen eine Verbindung,
+Absenderadresse und Ordnerkonfiguration. Der aktuelle Client benötigt dafür noch
+Sent-Konfiguration und einen öffentlichen Konfigurationszugriff; der Entwurf
+behauptet keine bereits vorhandene Initialisierung dafür (siehe 02 und Vertrags-§ 2).
+Zielordner müssen existieren und eigene IMAP-Keywords unterstützen.
 
-| State transition | Expected result |
-|---|---|
-| Unknown incoming, no outgoing link | user=null; classify/move message without inserting user |
-| Known alias sends a new unrelated message | Existing user and its metadata available |
-| Outgoing observed, no creation rule | Pending recipient/history only |
-| Outgoing observed, creation rule | Find/create addressed recipient |
-| First reply from another address | Verify live Sent mail; create/find original recipient; add alias |
-| Referenced outgoing missing or ambiguous | No new user/alias; review outcome |
-| Two users implicated | Conflict, no merge |
-| Normal move | Preserve/set ordinary processed at destination |
-| Manual move with processed retained | No ordinary reprocessing |
-| Remove processed manually | Next run schedules the registered destination chain |
-| moveTo(..., reprocess: true) | Defer destination chain to next run |
-| Explicit application flag added | Its registered event route can run despite processed |
-| No rule matches | Mark checked |
-| Handler fails | Report error; keep eligible work pending |
-| Initial incoming scan | All unmarked existing mail eligible across all pages |
-| Initial Sent scan | Index history; no outgoing rule execution unless opted in |
-| Missing name | Email local-part slug; add domain if too short |
-| Same name twice | Different random suffixes |
-| Name/primary changes later | Stable ID; search current name and aliases |
-| Cross-server move | Separate future API; not moveTo |
+01 erzeugt `$database` (PDO SQLite) und `$automation`. Spätere Ausschnitte nennen
+ihre Einfügestelle und verwenden diese Namen weiter. Externe Dienste in 09/10 kommen
+aus den jeweils benannten Anwendungs-Bootstraps; ihre Bibliotheksanbindung ist vollständig gezeigt.
+Die Varianten setzen sich nicht gegenseitig automatisch voraus.
 
-Single instance is assumed. No crash-safety or duplicate-processing guarantee is
-claimed. Permanent custom keywords must be supported. All target folders must exist.
-PDO SQLite requires its extension; no schema factories are written by application
-code. No real mailbox, AI service or sending service is called by these files.
+`Email` steht für `Phore\MailClient\Email`. Die übrigen Automation-Typen liegen
+unter `Phore\MailClient\Automation`; `OnFolderAutomation` und `OnFlagAdded`
+unter dessen `Attributes`-Namespace. `PDO` ist der PHP-Standardtyp.
+Callbacks bekommen `Email` und `MailContext` von der Engine, nicht aus selbst erzeugten Testobjekten.
 
-One automation owns one MailClient connection. onFolder(Folder::Inbox) and onFolder(Folder::Sent) need
-no account key; onFolder('B2B') selects only a folder within that client.
-addAutomation(...) registers work; run() executes it. addRules(...) registers
-attributed rule objects/callables. Configuration belongs exclusively to the client.
+## Betriebsverhalten beim Ausprobieren
 
-`#[OnFolderAutomation]` selects a folder without a separate Mailbox attribute.
-`automationId` is optional (class short name by default; methods include their name).
-`active: false` skips a rule; it does not retain a backlog. See example 08.
-Example 05 explicitly binds `new ReplyIdentityResolver()` through `identity:`;
-its standard behavior also applies when that constructor option is omitted.
+Beim ersten Lauf werden alle unmarkierten Eingänge verarbeitet. Sent-Altbestand
+wird zunächst nur indexiert; `run(processExistingOutgoing: true)` aktiviert
+ausdrücklich auch seine Ausgangsregeln. Spätere Läufe verwenden denselben Speicher.
+Eine fehlgeschlagene Verarbeitung bleibt offen, auch wenn der Synchronisationscursor weiterläuft.
+
+`run()` liefert einen `RunReport` mit Zählern und strukturierten Fehlern.
+**Offener API-Punkt:** Die konkreten öffentlichen Report-Felder und der Zugriff auf
+einzelne Fehler sind noch nicht festgelegt. Deshalb zeigen die Ausschnitte keine
+erfundenen Report-Methoden; dieser Vertrag muss vor ausführbaren Beispielen ergänzt werden.
+
+Single Instance ist vereinbart; Absturzsicherung und Doppelverarbeitungsgarantien
+sind nicht Teil dieses Entwurfs. Manuelle Migrationen, Identitätskonflikte und
+Reprocessing-Grenzen stehen im Vertrags-§§ 4–6, ID-Fallbacks in § 7.

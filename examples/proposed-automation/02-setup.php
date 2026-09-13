@@ -1,24 +1,16 @@
-<?php
-declare(strict_types=1);
-
-// API-ENTWURF: Automation ist noch nicht implementiert; kein eigenständig ausführbares Skript.
-// Ziel: Einen vorhandenen MailClient mit dem Speicher für seine Automatisierung verbinden.
-use Phore\MailClient\MailClient;
-use Phore\MailClient\Automation\MailAutomation;
-
-// Voraussetzung: Die Anwendung stellt den Client samt einziger Verbindung bereit.
-// MailClient enthält Absender, Inbox, Sent sowie Drafts/Trash; diese Angaben werden übernommen.
-assert($client instanceof MailClient);
-
-// PDO öffnet SQLite und erstellt die Datei bei Bedarf; das Verzeichnis muss existieren.
-$database = new PDO('sqlite:/var/lib/app/mail.sqlite');
-
-// MailAutomation bindet genau diesen client; storage speichert Cursor, Benutzer und Historie.
-// Bei PDO SQLite erstellt die Automatisierung Tabellen und Standard-Stores automatisch.
+// Welche Verbindung und welchen Speicher verwendet die Automatisierung?
+// Ersetzt bei anderem Speicherort nur das Setup aus 01; danach folgen Regeln und run().
+// Derselbe $client bleibt für genau ein Konto zuständig.
+$database = new PDO('sqlite:/var/lib/app/customer-mail.sqlite');
 $automation = new MailAutomation(client: $client, storage: $database);
 
-assert($automation instanceof MailAutomation); // Regeln können nun registriert werden.
-// Kein addMailbox, kein Kontoschlüssel, keine zweite Verbindung oder Ordnerkonfiguration.
-// Regeln vor run() registrieren; run liefert anschließend den Verarbeitungsbericht.
-// Der vorhandene Client benötigt für die spätere Implementierung noch Sent-Konfiguration
-// und einen lesbaren Konfigurationsvertrag. Das ist hier Entwurf, keine bereits verfügbare API.
+// Ergebnis: neuer Speicherort, dieselbe Verbindung und dieselben Ordner wie im Client.
+// Für Folgeläufe denselben Pfad verwenden, damit Cursor, Benutzer und Historie erhalten bleiben.
+// Folder::Inbox, Sent, Drafts, Trash und Junk werden auf Client-Ordner abgebildet;
+// ein String wie 'Customers' bezeichnet den exakten Ordnernamen in diesem Konto.
+//
+// Voraussetzung des Entwurfs: Der Client muss seine Konfiguration lesbar bereitstellen.
+// Im aktuellen MailClient fehlen dafür noch Sent-Konfiguration und Konfigurationszugriff.
+// Diese Lücke ist vor der Implementierung zu schließen; hier wird keine neue Client-API erfunden.
+// Fehlender Absender, ungültige Ordnerzuordnung oder fremder Konto-State führen zu Fehlern.
+// Alternative Speicher-/ID-Implementierungen: 09-custom-storage.php.

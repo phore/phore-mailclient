@@ -1,46 +1,35 @@
-<?php
-declare(strict_types=1);
-
-// API-ENTWURF: Die Automation-Typen sind noch nicht implementiert.
-// Anwendungsausschnitt mit ausdrücklich vorausgesetzten Objekten; nicht eigenständig ausführbar.
-
-// Folder benennt Standardordner; ihre tatsächlichen Namen stammen aus dem Client.
-// automationId ist optional; active (Standard true) kann diese Regel vorübergehend deaktivieren.
-// Ziel: Beim Beobachten neuer Gesendet-Nachrichten den einzelnen Empfänger anlegen.
-use Phore\MailClient\Email;
-use Phore\MailClient\Automation\{Folder, MailAutomation, MailActions, MailContext};
-
-// Voraussetzung: $automation verwendet den bereits konfigurierten Client.
-// MailAutomation synchronisiert Sent vor den Eingängen.
-assert($automation instanceof MailAutomation);
-
-// onFolder(Folder::Sent) wählt neue beobachtete Ausgänge; addAutomation registriert die erste passende Regel.
-// automationId identifiziert sie, priority steuert die Reihenfolge, matches ist eine reine Bedingung.
-// Email ist der Ausgang; MailContext liefert recipientUsers (Adresse => MailUser|null).
-// handle wird erst nach einem Treffer aufgerufen und gibt MailActions zurück.
+// Wie lege ich Kontakte bereits beim Beobachten einer gesendeten Mail an?
+// Ergänzt 01 oder 03 vor run(); ohne diese Regel bleibt Anlage bei der ersten Antwort.
+// Sent wird vor Inbox verarbeitet. recipientUsers ordnet externe Empfängeradressen
+// vorhandenen Benutzern oder null zu; unsere eigene Adresse ist ausgeschlossen.
+// Sent-Altbestand wird beim ersten Lauf nur indexiert, diese Regel läuft für neue Beobachtungen.
 $automation->onFolder(Folder::Sent)->addAutomation(
-    automationId: 'outgoing.create-recipient', priority: 0,
     matches: fn (Email $mail, MailContext $context): bool => count($context->recipientUsers) === 1,
     handle: function (Email $mail, MailContext $context): MailActions {
-        // createUserForRecipient erstellt den einzigen externen Empfänger oder lädt ihn.
-        // Rückgabe MailUser; niemals wird unsere eigene Absenderadresse zum Kunden.
+        // Unmittelbarer Store-Schreibzugriff: einzigen Empfänger anlegen oder vorhandenen laden.
         $user = $context->createUserForRecipient();
-
-        // classification ist string|null. classify speichert die fachliche Kategorie.
         if ($user->classification === null) {
             $user->classify('new_contact');
         }
-        // setMetadata speichert einen JSON-kompatiblen Wert am Benutzer.
         $user->setMetadata('source', 'sent_folder');
-
-        // none bedeutet Erfolg ohne weitere Mailaktion; Engine setzt phore_outgoing_processed.
+        // Erfolgreich ohne Mailaktion; die Engine setzt phore_outgoing_processed.
         return MailActions::none();
     },
 );
 
-// run verarbeitet beobachtete Ausgänge; Rückgabe RunReport, kein SMTP-Versand.
-$report = $automation->run();
-// Erwartung: unbekannter Empfänger wird angelegt; bekannte Benutzer behalten ihre ID/Hauptadresse.
-// Ohne diese Regel wird nur Ausgangsevidenz gespeichert: Benutzeranlage erst bei verifizierter Antwort.
-// Mehrere Empfänger: createUserForRecipient($address) verlangt jeweils eine echte Empfängeradresse;
-// die Regel oben überspringt diesen Fall bewusst, statt einen einzelnen Benutzer zu erraten.
+// Beispiel: neuer Ausgang an Anna <anna@old.example> → Benutzer mit dieser Hauptadresse.
+// Bestehende Klassifizierung bleibt erhalten; source wird bei dieser Verarbeitung gesetzt.
+
+// Alternative: ersetzt NUR die obige Sent-Regel, wenn jeder externe Empfänger angelegt werden soll.
+$automation->onFolder(Folder::Sent)->addAutomation(
+    matches: fn (Email $mail, MailContext $context): bool => true,
+    handle: function (Email $mail, MailContext $context): MailActions {
+        foreach ($context->recipientUsers as $address => $knownUser) {
+            $context->createUserForRecipient($address);
+        }
+        return MailActions::none();
+    },
+);
+// An Anna und Ben gesendet → zwei adressbezogene Benutzer; kein willkürlich gewählter Hauptkontakt.
+// Ohne externe Empfänger bleibt der Store unverändert. Mehrdeutige Gruppenantworten
+// erlauben trotzdem kein automatisches Aliaslernen; sie benötigen Prüfung (05).

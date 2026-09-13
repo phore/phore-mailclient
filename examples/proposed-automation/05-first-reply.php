@@ -25,7 +25,7 @@ $automation->onFolder(Folder::Inbox)->addAutomation(
 
         // Benutzer und neue Aliase sind bereits gespeichert; diese Metadatenänderung gilt sofort.
         $context->user->setMetadata('replyLanguage', 'de');
-        return MailActions::none();
+        return MailActions::complete();
     },
 );
 $report = $automation->run();

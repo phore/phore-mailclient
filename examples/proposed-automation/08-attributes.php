@@ -18,10 +18,12 @@ final class RecipientRules
     #[OnFolderAutomation(folder: Folder::Sent)]
     public function sent(Email $mail, MailContext $context): MailActions
     {
-        if (count($context->recipientUsers) === 1) {
-            $context->createUserForRecipient()->setMetadata('source', 'sent_folder');
+        if (count($context->recipientUsers) !== 1) {
+            // Nicht zuständig: nächste passende Sent-Regel, ohne vorherige Benutzeränderung.
+            return MailActions::pass();
         }
-        return MailActions::none();
+        $context->createUserForRecipient()->setMetadata('source', 'sent_folder');
+        return MailActions::complete();
     }
 }
 
@@ -46,3 +48,4 @@ $report = $automation->run();
 // Neue Rechnung → Invoices + invoice + processed, kein invoice_ready.
 // Neuer Ausgang an einzelnen unbekannten Empfänger → Benutzer wird angelegt.
 // Andere Betreffzeilen treffen hier keine Inbox-Regel und werden als geprüft markiert.
+// Gruppenausgang → pass(); hier folgt keine weitere Sent-Regel, daher Abschluss als geprüft.

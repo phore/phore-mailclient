@@ -15,8 +15,8 @@ $automation->onFolder(Folder::Sent)->addAutomation(
             $user->classify('new_contact');
         }
         $user->setMetadata('source', 'sent_folder');
-        // Erfolgreich ohne Mailaktion; die Engine setzt phore_processed.
-        return MailActions::none();
+        // complete() beendet die Kette ohne weitere Mailaktion; die Engine setzt phore_processed.
+        return MailActions::complete();
     },
 );
 
@@ -30,7 +30,7 @@ $automation->onFolder(Folder::Sent)->addAutomation(
         foreach ($context->recipientUsers as $address => $knownUser) {
             $context->createUserForRecipient($address);
         }
-        return MailActions::none();
+        return MailActions::complete();
     },
 );
 // An Anna und Ben gesendet → zwei adressbezogene Benutzer; kein willkürlich gewählter Hauptkontakt.

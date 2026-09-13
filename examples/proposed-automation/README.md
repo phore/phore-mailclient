@@ -66,3 +66,20 @@ Identitätslernen. Lesen/Indexieren von Sent-Belegen bleibt möglich. Zum Wieder
 zuerst verschieben und gewünschte Keywords setzen, dann `phore_processed` entfernen.
 Keyword-Regeln prüfen den aktuellen Zustand (Beispiel 11); Kopien bleiben bei erhaltenem
 Keyword gesperrt. `moveTo(..., reprocess: true)` gibt das Ziel erst für den nächsten Lauf frei.
+
+## Handler abschließen oder weiterreichen
+
+Jeder Handler liefert `MailActions` für die aktuelle Nachricht:
+
+| Rückgabe | Wirkung |
+|---|---|
+| `MailActions::complete()` | Ohne weitere Mailaktion abschließen, phore_processed setzen, Kette beenden. |
+| `MailActions::pass()` | Nächste passende Automatisierung im selben Lauf versuchen; noch kein Bearbeitet-Keyword. |
+| `MailActions::create()->moveTo('B2B')` | Aktionsliste ausführen und abschließen. |
+
+`matches=false` überspringt den Handler bereits vor dessen Aufruf. Beispiel 03 zeigt
+die spätere Entscheidung im Handler mit `pass()`, Beispiel 08 dieselbe Rückgabe bei Attributregeln.
+Vor `pass()` darf der Handler keine Änderungen vornehmen; sofort gespeicherte Metadaten
+werden nicht zurückgerollt. Wenn alle Regeln ablehnen, markiert die Engine die Mail als
+geprüft. Fehler stoppen die Kette und lassen Arbeit offen. Die bestehende
+`reprocess: true`-Variante gibt das Ziel für den nächsten Lauf frei.

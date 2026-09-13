@@ -9,6 +9,7 @@
 | 2026-09-13 | dermatthes | § 9: Examples als aufbauende Lesereihe gekürzt, Einbindung und Varianten geklärt, Report-Vertragslücke benannt |
 | 2026-09-13 | dermatthes | §§ 3–6, § 8: Einheitliche Bearbeitet-Sperre, aktuelle Keyword-Bedingungen und explizite Wiederaufnahme |
 | 2026-09-13 | dermatthes | § 9: PHP-Starttag in allen gespeicherten Examples wiederhergestellt |
+| 2026-09-13 | dermatthes | §§ 3–4: complete für Abschluss, pass für nächste passende Automatisierung; mehrdeutiges none entfernt |
 
 ## § 1 Status and scope
 
@@ -97,10 +98,28 @@ never fall back to guessed provider folders. Sent/Inbox configuration must be di
 These selectors replace separate incoming/outgoing selectors. Keyword rules belong to
 this same folder chain; there is no separate flag-change event route. Predicates receive
 (Email, MailContext): bool; handlers receive (Email, MailContext): MailActions.
-Higher priority wins, ties use registration order. Only the first matching handler
-runs per eligible message in its current folder chain. Duplicate IDs/incompatible signatures fail before writes.
+Higher priority runs first, ties use registration order. A false predicate skips the
+handler. A matching handler returning MailActions::pass() continues with the next
+rule's predicate in the same folder chain and run. MailActions::complete() or a
+successful action list ends the chain for this message. Duplicate IDs/incompatible signatures fail before writes.
 Exceptions are failures, never a fall-through. Unmarked observed messages and deliberate
-marker resets are eligible; a folder event is not proof of new delivery.
+marker resets are eligible; a folder event is not proof of new delivery. [geändert]
+
+Every handler returns MailActions: complete() explicitly finishes without further
+mail actions; pass() declines responsibility without setting phore_processed.
+create() builds an action list for the current message; successful execution finishes
+the chain, except the documented deferred reprocess handoff. An empty create() list
+also finishes; use complete() to express that intent directly. complete()/pass() are
+standalone results and cannot be combined with queued actions. null, missing returns
+and exceptions are errors, not delegation. There is no none() result. [neu]
+
+Handlers must decide to pass before any mail mutation, metadata write, user creation
+or external side effect. Such changes cannot be rolled back by pass(); this is a handler
+contract, not a promised transaction around arbitrary application code. Identity enrichment
+occurs once before this chain and remains available to later handlers; pass() does not
+undo that engine step or trigger it again. If every active rule skips or passes, the
+engine marks the message processed as checked. A handler/action failure instead stops
+the chain and keeps work pending; no fallback handler executes after a failure. [neu]
 
 First check the current phore_processed keyword. Marked messages skip identity learning,
 predicates, handlers and mail actions. For eligible incoming messages, resolve a known From or learn identity from a verified
@@ -132,19 +151,19 @@ Renaming a class changes its inferred ID but does not reset message processed fl
 
 Both addAutomation and trigger attributes accept active: bool = true. With false,
 the rule is registered but neither its predicate nor handler executes. Other active rules
-continue normally. If none matches, normal no-match marking still applies; active: false
+continue normally. If all rules skip or pass, normal no-match marking still applies; active: false
 is not a folder pause or backlog retention mechanism. Re-enabling affects eligible mail;
 already processed messages require an explicit marker reset to run again. Resolver enrichment
 and Sent indexing are independent of a rule's active setting. Change configuration before
-the next run; no dynamic switching API is required for V1.
+the next run; no dynamic switching API is required for V1. [geändert]
 
 ## § 4 Processed flags, moves and reprocessing
 
 phore_processed is the single global automation gate for every folder, including
 Inbox, Sent, Drafts, Trash and Junk, and every keyword-conditioned rule. If present,
 MailAutomation performs no identity learning, predicates, handlers or mail mutations
-for that message. A successful handler, MailActions::none() or no-match outcome sets
-this same keyword. There is no separate outgoing completion marker.
+for that message. A successful action list, MailActions::complete() or an exhausted
+chain (all rules skipped or passed) sets this same keyword. pass() alone never sets it. There is no separate outgoing completion marker. [geändert]
 
 Synchronization may still read flags/locations and maintain cursors. Sent evidence is
 still read and indexed, including processed Sent messages, so an eligible incoming
@@ -177,11 +196,11 @@ at the destination. The destination must have a registered chain. This also appl
 to handoffs to or from Sent. Deferred work never executes within the same run.
 Avoid cyclic handoff routes.
 
-Keyword-conditioned rules participate in the same priority order and first-match
+Keyword-conditioned rules participate in the same priority order and complete/pass
 selection as all other folder rules. Setting a business keyword on a processed
 message alone does nothing. Remove phore_processed to re-evaluate the CURRENT
 keyword set; a past flag-added event is neither needed nor replayed.
-Unmarked failures remain pending independently of the sync cursor.
+Unmarked failures remain pending independently of the sync cursor. [geändert]
 
 Initial ordinary scans process ALL unmarked existing messages across every page.
 Initial Sent scans index all existing outgoing evidence, but baseline existing
@@ -362,7 +381,7 @@ files build on introduced concepts, explicitly replace or extend known code, and
 outgoing creation, resolver binding, metadata, forms, attributes and advanced adapters.
 Shared type names, prerequisites and design status appear once in the index. The PHP
 fragments start with <?php on the first line for PHP recognition, omit additional
-wrappers/imports and are not standalone executable files. [geändert]
+wrappers/imports and are not standalone executable files.
 
 Examples separate fixture outcomes from handler conditions, omit redundant type assertions
 and optional defaults, and show when changes occur immediately or on a later run.

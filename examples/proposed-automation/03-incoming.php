@@ -2,7 +2,8 @@
 // Wie unterscheiden wir Prüfbedarf, B2B, Neukontakte und sonstige Kunden?
 // Ersetzt die Inbox-Regel aus 01, nach dessen Setup und vor dessen run().
 // Zusätzlich existieren Review, B2B, NewContacts und Customers.
-// Höhere priority zuerst; nur der erste Treffer pro Ordnerkette wird ausgeführt.
+// Höhere priority zuerst. matches=false überspringt die Regel; pass() reicht aus dem Handler weiter.
+// complete() oder eine erfolgreiche Aktionsliste beendet die Kette für diese Mail.
 $automation->onFolder(Folder::Inbox)->addAutomation(
     priority: 300,
     matches: fn (Email $mail, MailContext $context): bool => $context->identity->needsReview(),
@@ -14,9 +15,15 @@ $automation->onFolder(Folder::Inbox)->addAutomation(
 // Deshalb gehört die B2B-Zielregel unten zu dieser Variante.
 $automation->onFolder(Folder::Inbox)->addAutomation(
     priority: 200,
-    matches: fn (Email $mail, MailContext $context): bool => $context->user?->classification === 'b2b',
-    handle: fn (Email $mail, MailContext $context): MailActions =>
-        MailActions::create()->moveTo('B2B', reprocess: true),
+    matches: fn (Email $mail, MailContext $context): bool => true,
+    handle: function (Email $mail, MailContext $context): MailActions {
+        // Variante: Zuständigkeit wird hier erst im Handler entschieden.
+        // Vor pass() keine Mail- oder Benutzeränderungen ausführen.
+        if ($context->user?->classification !== 'b2b') {
+            return MailActions::pass();
+        }
+        return MailActions::create()->moveTo('B2B', reprocess: true);
+    },
 );
 
 $automation->onFolder(Folder::Inbox)->addAutomation(
@@ -42,3 +49,5 @@ $automation->onFolder('B2B')->addAutomation(
 // Annas B2B-Mail liegt zunächst ohne processed in B2B; erst der nächste run() setzt b2b_ready.
 // Unbekannte unverknüpfte Mail → NewContacts + new_contact + processed, weiterhin kein Benutzer.
 // Bekannter Privatkunde → Customers; widersprüchliche Antwortzuordnung → Review.
+// Beim unbekannten Absender liefert der B2B-Handler pass(): danach greift die NewContacts-Regel.
+// pass() setzt kein processed. Lehnt die gesamte Kette ab, setzt die Engine es als geprüft.

@@ -14,7 +14,7 @@ $user->setMetadata('customerNumber', 'C-1042');
 $storedUser = $users->findById($user->id);
 $messages = $history->forUser($user->id, limit: 20);
 $matches = $users->search('Anna');
-return MailActions::none();
+return MailActions::complete();
 
 // Für Annas Antwort aus 05: storedUser.id = user.id, classification = b2b,
 // metadata.customerNumber = C-1042; matches enthält Anna.

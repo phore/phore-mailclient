@@ -1,7 +1,7 @@
 <?php
 // Wo gehören Zusatzdaten hin: Kontakt, Gespräch, Nachricht oder Mailbox?
 // Eigenständige Alternative: $client und $database stammen aus dem Setup in 01.
-// Der Standardresolver verknüpft Kontakt und Thread vor dem Handler.
+// Die Engine bereitet Kontaktzuordnung und Thread vor dem Handler vor.
 $automation = new MailAutomation(client: $client, storage: $database);
 
 // Manuelle Prüfung: review_complete setzen, dann phore_processed entfernen.
@@ -38,7 +38,7 @@ function recordReview(Email $mail, MailContext $context): MailActions
     // Nur diese Nachricht ist geprüft. Eine spätere Antwort hat eigene, zunächst leere Metadaten.
     $context->metadata->set('reviewed', true);
 
-    // Kontaktweit sofort gespeichert; deshalb ist ab hier pass() nicht mehr zulässig.
+    // Kontaktweit sofort gespeichert; nach dem ersten set()-Aufruf darf kein pass() mehr folgen.
     $contact->metadata->set('lastReviewedCase', $caseId);
     $contact->classify('b2b');
 

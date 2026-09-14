@@ -2,7 +2,7 @@
 declare(strict_types=1);
 namespace Phore\MailClient\Test\Unit;
 use PHPUnit\Framework\TestCase;
-use Phore\MailClient\{MailClient,Email};
+use Phore\MailClient\{MailClient,Email,MailboxFolder};
 use Phore\MailClient\Internal\{Transport,Reference};
 
 final class MailClientTest extends TestCase
@@ -20,6 +20,28 @@ final class MailClientTest extends TestCase
         $client->setAutomaticMode(true); self::assertTrue($client->isAutomatic('seen'));
         $source = new Email(from:'other@example.org');
         self::assertNull($client->reply($source)->id()); self::assertNull($client->forward($source)->id());
+    }
+    public function testAutomationPrimitivesExposeConfigurationWithoutIo(): void
+    {
+        $transport = $this->createMock(Transport::class);
+        foreach (['select','search','metadata','part','append','flag','move'] as $method) { $transport->expects(self::never())->method($method); }
+        $client = new MailClient(
+            $transport,
+            'account-1',
+            draftsFolder:'Entwürfe',
+            trashFolder:'Papierkorb',
+            from:'Support <support@example.org>',
+            incomingFolder:'Eingang',
+            sentFolder:'Gesendet',
+            junkFolder:'Spam',
+        );
+        self::assertSame('account-1', $client->accountId());
+        self::assertSame('support@example.org', $client->fromAddress()?->getAddress());
+        self::assertSame('Eingang', $client->folder(MailboxFolder::Inbox));
+        self::assertSame('Gesendet', $client->folder(MailboxFolder::Sent));
+        self::assertSame('Entwürfe', $client->folder(MailboxFolder::Drafts));
+        self::assertSame('Papierkorb', $client->folder(MailboxFolder::Trash));
+        self::assertSame('Spam', $client->folder(MailboxFolder::Junk));
     }
     public function testForeignReferencesFailBeforeIo(): void
     {

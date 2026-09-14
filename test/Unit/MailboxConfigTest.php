@@ -38,6 +38,9 @@ final class MailboxConfigTest extends TestCase
         self::assertSame(993, $config->port);
         self::assertSame('Drafts', $config->draftsFolder);
         self::assertSame('Trash', $config->trashFolder);
+        self::assertSame('INBOX', $config->incomingFolder);
+        self::assertSame('Sent', $config->sentFolder);
+        self::assertSame('Junk', $config->junkFolder);
         self::assertSame('automatic', $config->mode);
         self::assertNull($config->from);
     }
@@ -72,10 +75,22 @@ final class MailboxConfigTest extends TestCase
     }
     public function testExplicitOptionsAreRetained(): void
     {
-        $config = MailboxConfig::fromArray($this->settings() + ['port'=>1993, 'draftsFolder'=>'Entwürfe', 'trashFolder'=>'Papierkorb', 'from'=>'Support <support@example.org>', 'mode'=>'manual']);
+        $config = MailboxConfig::fromArray($this->settings() + [
+            'port'=>1993,
+            'draftsFolder'=>'Entwürfe',
+            'trashFolder'=>'Papierkorb',
+            'incomingFolder'=>'Eingang',
+            'sentFolder'=>'Gesendet',
+            'junkFolder'=>'Spam',
+            'from'=>'Support <support@example.org>',
+            'mode'=>'manual',
+        ]);
         self::assertSame(1993, $config->port);
         self::assertSame('Entwürfe', $config->draftsFolder);
         self::assertSame('Papierkorb', $config->trashFolder);
+        self::assertSame('Eingang', $config->incomingFolder);
+        self::assertSame('Gesendet', $config->sentFolder);
+        self::assertSame('Spam', $config->junkFolder);
         self::assertSame('Support <support@example.org>', $config->from);
         self::assertSame('manual', $config->mode);
     }
@@ -87,7 +102,7 @@ final class MailboxConfigTest extends TestCase
     }
     public static function invalidSettings(): iterable
     {
-        foreach ([['password'=>'do-not-store'], ['unknown'=>true], ['host'=>''], ['host'=>"host\n"], ['host'=>'ssl://host'], ['username'=>null], ['port'=>'993'], ['port'=>0], ['port'=>65536], ['port'=>true], ['draftsFolder'=>''], ['trashFolder'=>[]], ['mode'=>'typo'], ['from'=>42], ['from'=>'invalid'], ['passwordFromSecretName'=>''], ['passwordFromSecretName'=>'../outside'], ['passwordFromSecretName'=>'/absolute'], ['passwordFromSecretName'=>'a/b'], ['passwordFromSecretName'=>"BAD\n"], ['passwordFromSecretName'=>'a\\b']] as $changes) { yield [$changes]; }
+        foreach ([['password'=>'do-not-store'], ['unknown'=>true], ['host'=>''], ['host'=>"host\n"], ['host'=>'ssl://host'], ['username'=>null], ['port'=>'993'], ['port'=>0], ['port'=>65536], ['port'=>true], ['draftsFolder'=>''], ['trashFolder'=>[]], ['incomingFolder'=>''], ['sentFolder'=>[]], ['junkFolder'=>"bad\n"], ['mode'=>'typo'], ['from'=>42], ['from'=>'invalid'], ['passwordFromSecretName'=>''], ['passwordFromSecretName'=>'../outside'], ['passwordFromSecretName'=>'/absolute'], ['passwordFromSecretName'=>'a/b'], ['passwordFromSecretName'=>"BAD\n"], ['passwordFromSecretName'=>'a\\b']] as $changes) { yield [$changes]; }
     }
     #[DataProvider('invalidJson')]
     public function testInvalidFilesAreRejected(string $json): void

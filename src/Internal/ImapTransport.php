@@ -9,7 +9,7 @@ use Webklex\PHPIMAP\Connection\Protocols\ImapProtocol;
 use Webklex\PHPIMAP\Connection\Protocols\Response;
 
 /** @internal Uses Webklex's pure PHP protocol with explicit UID and PEEK commands. */
-final class ImapTransport implements Transport
+final class ImapTransport implements SyncTransport
 {
     private Client $client;
     private ImapProtocol $protocol;
@@ -56,6 +56,29 @@ final class ImapTransport implements Transport
         sort($ids, SORT_NUMERIC);
         // n:* can include the current highest UID when n exceeds it.
         return array_values(array_filter($ids, static fn(int $id): bool => $id > ($criteria['after'] ?? 0)));
+    }
+    public function syncFlags(array $uids): array
+    {
+        if ($uids === []) { return []; }
+        if (count($uids) > 100) { throw new \InvalidArgumentException('Sync fetch is limited to 100 UIDs.'); }
+        foreach ($uids as $uid) {
+            if (!is_int($uid) || $uid < 1 || $uid > 4294967295) { throw new \InvalidArgumentException('Invalid sync UID.'); }
+        }
+        $response = $this->protocol->requestAndResponse('UID FETCH', [implode(',', $uids), '(UID FLAGS)'], true);
+        $response->validate();
+        $wire = implode('', $response->getResponse());
+        if (strlen($wire) > 1000000) { throw new RuntimeException('Sync flag response exceeds byte limit.'); }
+        $result = [];
+        foreach ($uids as $uid) {
+            try { $data = ImapTokens::fetch($wire, $uid); }
+            catch (RuntimeException $error) {
+                if ($error->getMessage() === 'Message no longer exists.') { continue; }
+                throw $error;
+            }
+            if (!isset($data['FLAGS']) || !is_array($data['FLAGS'])) { throw new RuntimeException('Server omitted sync flags.'); }
+            $result[$uid] = $data['FLAGS'];
+        }
+        return $result;
     }
     public function metadata(int $uid): array
     {

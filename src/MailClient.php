@@ -337,6 +337,7 @@ final class MailClient
         $this->transport->metadata($ref->uid); $this->transport->flag($ref->uid,$flag,$add);
         return $this->read($email->id());
     }
+
     public function moveTo(Email $email, string $folder): Email
     {
         Headers::validate($folder);

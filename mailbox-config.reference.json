@@ -51,6 +51,27 @@
             "description": "Exact nonempty server trash folder name. Moving requires native IMAP MOVE and UIDPLUS.",
             "example": "Trash"
         },
+        "incomingFolder": {
+            "type": "string",
+            "required": false,
+            "default": "INBOX",
+            "description": "Exact nonempty folder used as the configured incoming mailbox.",
+            "example": "INBOX"
+        },
+        "sentFolder": {
+            "type": "string",
+            "required": false,
+            "default": "Sent",
+            "description": "Exact nonempty folder containing sent-message copies used by consumers such as mail automation.",
+            "example": "Sent"
+        },
+        "junkFolder": {
+            "type": "string",
+            "required": false,
+            "default": "Junk",
+            "description": "Exact nonempty junk or spam folder name.",
+            "example": "Junk"
+        },
         "from": {
             "type": [
                 "string",

@@ -25,6 +25,8 @@ requirements, without an additional parser dependency:
   "username": "support@example.org",
   "passwordFromSecretName": "SUPPORT_MAIL_PASSWORD",
   "from": "Support <support@example.org>",
+  "sentFolder": "Sent",
+  "junkFolder": "Junk",
   "mode": "manual"
 }
 ```
@@ -68,6 +70,7 @@ This does not encrypt the original config file: it contains the supplied plainte
 | `passwordFromSecretName` | Alternative to `password`; name beginning with a letter or underscore, followed by letters, digits, `_`, `-` or `.` |
 | `port` | Integer, 1–65535; defaults to `993` |
 | `draftsFolder` / `trashFolder` | Exact nonempty names; default `Drafts` / `Trash` |
+| `incomingFolder` / `sentFolder` / `junkFolder` | Exact nonempty names; default `INBOX` / `Sent` / `Junk` |
 | `from` | Optional address string, default `null` |
 | `mode` | `automatic` (default, same as `MailClient::connect`) or `manual` |
 
@@ -118,11 +121,22 @@ workflow reserves the flags for actual sending. Saving and setting the source fl
 are separate IMAP operations: if the latter fails, the exception names the saved
 draft ID; retry the same Email to finish without duplicating the draft.
 
+## Stateless mailbox primitives
+
+Consumers that build their own durable processing layer can use the configured
+mailbox without accessing internal transport classes. `accountId()` returns the stable
+connection identity, `fromAddress()` returns the configured sender, and
+`folder(MailboxFolder::Inbox|Sent|Drafts|Trash|Junk)` resolves configured standard
+folders. `peek($id)` reads a message without automatic flag changes. `moveTo($email,
+$folder)` performs a verified same-account IMAP move into an existing exact folder.
+These APIs keep persistence and consumer cursors outside the mail client.
+
 ## Synchronize changes in any folder
 
 Use `syncFolder()` for additions, persistent flag changes and removals, including
-changes made by Thunderbird or another process. Unlike `listNew()` (new INBOX UIDs
-only), this observes previously known messages and accepts any selectable folder.
+changes made by Thunderbird or another process. Unlike `listNew()` (new configured
+incoming-folder UIDs only), this observes previously known messages and accepts any
+selectable folder.
 
 ```php
 // Application-owned functions below persist one cursor per consumer/account/folder.
@@ -228,7 +242,8 @@ process batches. See [IMAP](https://www.rfc-editor.org/rfc/rfc9051.html) and
 Set the `MAIL_IMAP_*` environment variables shown in the connection example.
 `MAIL_MODE=manual` makes the examples read-only until an explicit write is requested.
 No sending API is exposed. Trash requires native MOVE plus UIDPLUS, with no delete
-or EXPUNGE fallback. Inbox is `INBOX`; configure the exact Drafts and Trash names.
+or EXPUNGE fallback. Configure provider-specific incoming, Sent, Drafts, Trash and
+Junk folder names when they differ from the defaults.
 TLS is always implicit and certificate-verified (default port 993).
 
 `Email` values retain their Message-ID through local edits. Server IDs and cursors

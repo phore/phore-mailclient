@@ -20,6 +20,9 @@ final readonly class MailboxConfig
         public int $port,
         public string $draftsFolder,
         public string $trashFolder,
+        public string $incomingFolder,
+        public string $sentFolder,
+        public string $junkFolder,
         public ?string $from,
         public string $mode,
     ) { $this->password = $password === null ? null : new \SensitiveParameterValue($password); }
@@ -39,7 +42,7 @@ final readonly class MailboxConfig
     /** Accept the same settings from an application's own config parser. */
     public static function fromArray(#[\SensitiveParameter] array $data): self
     {
-        if (array_diff(array_keys($data), ['host','username','password','passwordFromSecretName','port','draftsFolder','trashFolder','from','mode']) !== []) {
+        if (array_diff(array_keys($data), ['host','username','password','passwordFromSecretName','port','draftsFolder','trashFolder','incomingFolder','sentFolder','junkFolder','from','mode']) !== []) {
             throw new InvalidArgumentException('Unknown mailbox setting.');
         }
         foreach (['host','username'] as $key) {
@@ -50,8 +53,19 @@ final readonly class MailboxConfig
         if ($hasPassword === $hasReference) { throw new InvalidArgumentException('Specify exactly one of password or passwordFromSecretName.'); }
         $credentialKey = $hasPassword ? 'password' : 'passwordFromSecretName';
         if (!is_string($data[$credentialKey]) || $data[$credentialKey] === '') { throw new InvalidArgumentException('Password or secret name must be a nonempty string.'); }
-        $data += ['password'=>null, 'passwordFromSecretName'=>null, 'port'=>993, 'draftsFolder'=>'Drafts', 'trashFolder'=>'Trash', 'from'=>null, 'mode'=>MailClient::MODE_AUTOMATIC];
-        foreach (['host','username','draftsFolder','trashFolder','mode'] as $key) {
+        $data += [
+            'password'=>null,
+            'passwordFromSecretName'=>null,
+            'port'=>993,
+            'draftsFolder'=>'Drafts',
+            'trashFolder'=>'Trash',
+            'incomingFolder'=>'INBOX',
+            'sentFolder'=>'Sent',
+            'junkFolder'=>'Junk',
+            'from'=>null,
+            'mode'=>MailClient::MODE_AUTOMATIC,
+        ];
+        foreach (['host','username','draftsFolder','trashFolder','incomingFolder','sentFolder','junkFolder','mode'] as $key) {
             if (!is_string($data[$key]) || $data[$key] === '') { throw new InvalidArgumentException('Invalid mailbox setting: ' . $key . '.'); }
             Headers::validate($data[$key]);
         }
@@ -64,17 +78,38 @@ final readonly class MailboxConfig
             EmailAddress::parse($data['from']);
         }
         if ($hasReference) { SecretResolver::validateName($data['passwordFromSecretName']); }
-        return new self($data['host'], $data['username'], $data['passwordFromSecretName'], $data['password'], $data['port'], $data['draftsFolder'], $data['trashFolder'], $data['from'], $data['mode']);
+        return new self(
+            $data['host'],
+            $data['username'],
+            $data['passwordFromSecretName'],
+            $data['password'],
+            $data['port'],
+            $data['draftsFolder'],
+            $data['trashFolder'],
+            $data['incomingFolder'],
+            $data['sentFolder'],
+            $data['junkFolder'],
+            $data['from'],
+            $data['mode'],
+        );
     }
 
     /** Resolve the secret afresh for each connection. TLS remains certificate-verified. */
     public function connect(string $secretsDirectory = '/var/run/secrets', array $messageDefaults = []): MailClient
     {
         return MailClient::connect(
-            host: $this->host, username: $this->username,
+            host: $this->host,
+            username: $this->username,
             password: $this->password !== null ? $this->password->getValue() : SecretResolver::resolve($this->passwordFromSecretName, $secretsDirectory),
-            port: $this->port, draftsFolder: $this->draftsFolder, trashFolder: $this->trashFolder,
-            from: $this->from, messageDefaults: $messageDefaults, mode: $this->mode,
+            port: $this->port,
+            draftsFolder: $this->draftsFolder,
+            trashFolder: $this->trashFolder,
+            from: $this->from,
+            messageDefaults: $messageDefaults,
+            mode: $this->mode,
+            incomingFolder: $this->incomingFolder,
+            sentFolder: $this->sentFolder,
+            junkFolder: $this->junkFolder,
         );
     }
 }

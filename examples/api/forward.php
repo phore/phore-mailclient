@@ -14,8 +14,8 @@ $email = $mailClient->get($emailId);
 
 // Client convenience, still a LOCAL transformation: the configured from identity
 // supplies both address and name without repeating them for each forward.
-// The configured forward introduction and signature are resolved locally too;
-// see create-message-defaults.php for placeholders, HTML and inline images.
+// The standard forward signature comes from mailbox.yaml; advanced quote templates,
+// HTML signatures and inline images are shown in create-message-defaults.php.
 // The new Email has no connection. No network request is made by forward().
 // New Email/Message-ID, Fwd: subject, original From/To/Cc/Date/Subject and
 // full Markdown body quoted below the new text. The source remains unchanged.

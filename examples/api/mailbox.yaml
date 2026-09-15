@@ -1,0 +1,11 @@
+host: imap.example.org
+username: support@example.org
+passwordFromSecretName: SUPPORT_MAIL_PASSWORD
+from: Support Team <support@example.org>
+sentFolder: Sent
+junkFolder: Junk
+mode: manual
+signature: |
+  Viele Grüße
+
+  **Support Team**

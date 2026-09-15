@@ -6,6 +6,11 @@ Webklex 6.2.0's pure PHP transport; `ext-imap` is not used.
 
 ## Mailbox configuration from a file
 
+Use `MailboxConfig::fromFile()` with one local YAML file as the standard setup. YAML
+files are parsed with PHP's `yaml_parse()` function; if that function is unavailable,
+loading `.yaml` or `.yml` fails with a `RuntimeException`. JSON remains supported for
+installations without the YAML extension.
+
 The [complete JSON reference tree](mailbox-config.reference.json) documents every
 field, its type, required status, default (where defined), example and meaning.
 It also documents the credential exclusivity rule. This is documentation, not a
@@ -16,27 +21,34 @@ Maintain the JSON reference manually whenever mailbox fields, types, defaults,
 validation or credential resolution change, as required by [AGENTS.md](AGENTS.md).
 Update it in the same change as the implementation.
 
-Store one mailbox in a local `mailbox.json`. JSON works with the existing PHP
-requirements, without an additional parser dependency:
+Store one mailbox in a local `mailbox.yaml`:
 
-```json
-{
-  "host": "imap.example.org",
-  "username": "support@example.org",
-  "passwordFromSecretName": "SUPPORT_MAIL_PASSWORD",
-  "from": "Support <support@example.org>",
-  "sentFolder": "Sent",
-  "junkFolder": "Junk",
-  "mode": "manual"
-}
+```yaml
+host: imap.example.org
+username: support@example.org
+passwordFromSecretName: SUPPORT_MAIL_PASSWORD
+from: Support Team <support@example.org>
+sentFolder: Sent
+junkFolder: Junk
+mode: manual
+signature: |
+  Viele Grüße
+
+  **Support Team**
 ```
 
 ```php
 use Phore\MailClient\MailboxConfig;
 
-$config = MailboxConfig::fromFile('/etc/my-app/mailbox.json'); // offline validation
+$config = MailboxConfig::fromFile('/etc/my-app/mailbox.yaml'); // offline validation
 $client = $config->connect(); // resolve password and connect with verified TLS
 ```
+
+The optional `signature` field is Markdown. When present, it becomes the default
+signature for new messages, replies/reply-all and forwards. Explicit per-message
+signatures still win, and `false` still disables the signature for one message.
+This keeps a mailbox identity and its normal signature in one centrally managed
+configuration file.
 
 Provide `SUPPORT_MAIL_PASSWORD` in the process environment or mount a file named
 `/var/run/secrets/SUPPORT_MAIL_PASSWORD`. With `passwordFromSecretName`, the configuration stores only the name.
@@ -48,13 +60,11 @@ on every `connect()` and are never cached in the config object.
 
 Alternatively, supply the literal password directly:
 
-```json
-{
-  "host": "imap.example.org",
-  "username": "support@example.org",
-  "password": "example-literal-password",
-  "mode": "manual"
-}
+```yaml
+host: imap.example.org
+username: support@example.org
+password: example-literal-password
+mode: manual
 ```
 
 `password` is used exactly as supplied, without trimming or environment lookup.
@@ -72,6 +82,7 @@ This does not encrypt the original config file: it contains the supplied plainte
 | `draftsFolder` / `trashFolder` | Exact nonempty names; default `Drafts` / `Trash` |
 | `incomingFolder` / `sentFolder` / `junkFolder` | Exact nonempty names; default `INBOX` / `Sent` / `Junk` |
 | `from` | Optional address string, default `null` |
+| `signature` | Optional nonempty Markdown string, default `null`; used for new/reply/forward |
 | `mode` | `automatic` (default, same as `MailClient::connect`) or `manual` |
 
 Exactly one of `password` or `passwordFromSecretName` must be present. Both, neither,
@@ -82,16 +93,16 @@ The example explicitly uses `manual` to avoid automatic flag changes.
 For other secret mount locations, use
 `$config->connect(secretsDirectory: '/run/secrets')`. This is an application option,
 not a path supplied by the config file. Mounted secret-file symlinks are supported.
-For existing YAML-based applications, pass your parser's associative array to
-`MailboxConfig::fromArray($settings)`; `fromFile()` itself accepts JSON only.
-The config's properties are read-only. Existing template/signature objects can be
-passed through `$config->connect(messageDefaults: $defaults)`; they are not stored
-in the file. Direct `MailClient::connect(...)` remains available.
+`MailboxConfig::fromArray($settings)` remains available for applications that already
+own a parsed settings array, but file-based configuration should normally use
+`MailboxConfig::fromFile()` directly. Advanced quote templates or type-specific
+signature overrides can still be supplied through `connect(messageDefaults: ...)`;
+when a central config signature exists it fills only signature types not explicitly
+provided there. Direct `MailClient::connect(...)` remains available.
 
-The [connection example](examples/api/connect-mail-client.php) supports
-`MAIL_CONFIG_FILE=/etc/my-app/mailbox.json`; when set, the file supplies all mailbox
-settings instead of the example's individual `MAIL_IMAP_*`, `MAIL_FROM_*` and
-`MAIL_MODE` variables.
+The [connection example](examples/api/connect-mail-client.php) loads
+[examples/api/mailbox.yaml](examples/api/mailbox.yaml) by default. Set
+`MAIL_CONFIG_FILE=/etc/my-app/mailbox.yaml` to use another file.
 
 ## Automatic and manual flags
 
@@ -231,20 +242,22 @@ process batches. See [IMAP](https://www.rfc-editor.org/rfc/rfc9051.html) and
 ## Examples
 
 - [Connection and mode](examples/api/connect-mail-client.php)
+- [Mailbox YAML](examples/api/mailbox.yaml)
 - [Address values](examples/api/addresses.php)
 - [Compose a draft](examples/api/compose-draft.php)
-- [Templates and signatures](examples/api/create-message-defaults.php)
+- [Advanced templates and signatures](examples/api/create-message-defaults.php)
 - [Incremental reading](examples/api/read-new.php)
 - [Reply/reply-all](examples/api/reply.php)
 - [Forward](examples/api/forward.php)
 - [Flags and trash](examples/api/message-actions.php)
 
-Set the `MAIL_IMAP_*` environment variables shown in the connection example.
-`MAIL_MODE=manual` makes the examples read-only until an explicit write is requested.
-No sending API is exposed. Trash requires native MOVE plus UIDPLUS, with no delete
-or EXPUNGE fallback. Configure provider-specific incoming, Sent, Drafts, Trash and
-Junk folder names when they differ from the defaults.
-TLS is always implicit and certificate-verified (default port 993).
+Set `MAIL_CONFIG_FILE` when you want to load a mailbox YAML file other than the
+example's `examples/api/mailbox.yaml`. The configured `mode: manual` makes the
+examples read-only until an explicit write is requested. No sending API is exposed.
+Trash requires native MOVE plus UIDPLUS, with no delete or EXPUNGE fallback.
+Configure provider-specific incoming, Sent, Drafts, Trash and Junk folder names when
+they differ from the defaults. TLS is always implicit and certificate-verified
+(default port 993).
 
 `Email` values retain their Message-ID through local edits. Server IDs and cursors
 encode account, folder, UIDVALIDITY and UID; stale/foreign references fail. Store
@@ -285,7 +298,7 @@ The provider workflow runs on relevant source/dependency/test changes on main an
 `test/expand-imap-provider-coverage` branch, and supports manual dispatch. It is separate
 from ordinary PR tests and never exposes secrets to fork pull requests.
 WEB.DE must have IMAP access enabled; two-factor accounts may need an app password.
-See [WEB.DE's server settings](https://hilfe.web.de/pop-imap/imap/imap-serverdaten.html).
+See [WEB.DE's server settings](https://hilfe.web.de/pop-imap/imap-serverdaten.html).
 
 Provider rendering in Thunderbird/Outlook and arbitrary provider interoperability
 are not claimed by the local Dovecot tests.

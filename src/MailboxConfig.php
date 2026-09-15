@@ -24,25 +24,41 @@ final readonly class MailboxConfig
         public string $sentFolder,
         public string $junkFolder,
         public ?string $from,
+        public ?Signature $signature,
         public string $mode,
     ) { $this->password = $password === null ? null : new \SensitiveParameterValue($password); }
 
-    /** Load one mailbox from a local JSON object, without resolving secrets or connecting. */
+    /** Load one mailbox from a local JSON or YAML mapping, without resolving secrets or connecting. */
     public static function fromFile(string $path): self
     {
-        if (str_contains($path, '://') || !is_file($path)) { throw new RuntimeException('Mailbox config must be a readable local file.'); }
-        $json = @file_get_contents($path);
-        if ($json === false) { throw new RuntimeException('Cannot read mailbox config file.'); }
-        try { $data = json_decode($json, false, 32, JSON_THROW_ON_ERROR); }
-        catch (\JsonException) { throw new InvalidArgumentException('Mailbox config must contain valid JSON.'); }
-        if (!$data instanceof \stdClass) { throw new InvalidArgumentException('Mailbox config must be a JSON object.'); }
+        if (str_contains($path, '://') || !is_file($path) || !is_readable($path)) {
+            throw new RuntimeException('Mailbox config must be a readable local file: ' . $path . '.');
+        }
+        $contents = @file_get_contents($path);
+        if ($contents === false) { throw new RuntimeException('Cannot read mailbox config file: ' . $path . '.'); }
+
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        if (in_array($extension, ['yaml', 'yml'], true)) {
+            if (!function_exists('yaml_parse')) {
+                throw new RuntimeException('Cannot parse YAML mailbox config because yaml_parse() is unavailable: ' . $path . '.');
+            }
+            $data = @yaml_parse($contents);
+            if (!is_array($data) || array_is_list($data)) {
+                throw new InvalidArgumentException('Mailbox config must contain a YAML mapping: ' . $path . '.');
+            }
+            return self::fromArray($data);
+        }
+
+        try { $data = json_decode($contents, false, 32, JSON_THROW_ON_ERROR); }
+        catch (\JsonException) { throw new InvalidArgumentException('Mailbox config must contain valid JSON: ' . $path . '.'); }
+        if (!$data instanceof \stdClass) { throw new InvalidArgumentException('Mailbox config must be a JSON object: ' . $path . '.'); }
         return self::fromArray((array) $data);
     }
 
     /** Accept the same settings from an application's own config parser. */
     public static function fromArray(#[\SensitiveParameter] array $data): self
     {
-        if (array_diff(array_keys($data), ['host','username','password','passwordFromSecretName','port','draftsFolder','trashFolder','incomingFolder','sentFolder','junkFolder','from','mode']) !== []) {
+        if (array_diff(array_keys($data), ['host','username','password','passwordFromSecretName','port','draftsFolder','trashFolder','incomingFolder','sentFolder','junkFolder','from','signature','mode']) !== []) {
             throw new InvalidArgumentException('Unknown mailbox setting.');
         }
         foreach (['host','username'] as $key) {
@@ -63,6 +79,7 @@ final readonly class MailboxConfig
             'sentFolder'=>'Sent',
             'junkFolder'=>'Junk',
             'from'=>null,
+            'signature'=>null,
             'mode'=>MailClient::MODE_AUTOMATIC,
         ];
         foreach (['host','username','draftsFolder','trashFolder','incomingFolder','sentFolder','junkFolder','mode'] as $key) {
@@ -77,6 +94,9 @@ final readonly class MailboxConfig
             if (!is_string($data['from'])) { throw new InvalidArgumentException('Mailbox from must be an address string or null.'); }
             EmailAddress::parse($data['from']);
         }
+        if ($data['signature'] !== null && (!is_string($data['signature']) || $data['signature'] === '')) {
+            throw new InvalidArgumentException('Mailbox signature must be a nonempty Markdown string or null.');
+        }
         if ($hasReference) { SecretResolver::validateName($data['passwordFromSecretName']); }
         return new self(
             $data['host'],
@@ -90,6 +110,7 @@ final readonly class MailboxConfig
             $data['sentFolder'],
             $data['junkFolder'],
             $data['from'],
+            $data['signature'] === null ? null : Signature::fromMarkdown($data['signature']),
             $data['mode'],
         );
     }
@@ -97,6 +118,13 @@ final readonly class MailboxConfig
     /** Resolve the secret afresh for each connection. TLS remains certificate-verified. */
     public function connect(string $secretsDirectory = '/var/run/secrets', array $messageDefaults = []): MailClient
     {
+        if ($this->signature !== null) {
+            $signatures = $messageDefaults['signatures'] ?? [];
+            foreach (['new','reply','forward'] as $type) {
+                if (!array_key_exists($type, $signatures)) { $signatures[$type] = $this->signature; }
+            }
+            $messageDefaults['signatures'] = $signatures;
+        }
         return MailClient::connect(
             host: $this->host,
             username: $this->username,

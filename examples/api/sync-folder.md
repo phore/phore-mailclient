@@ -1,8 +1,8 @@
 # Folder synchronization and cursor persistence
 
-`MailClient::syncFolder()` compares the current state of one exact IMAP folder with the state encoded in the cursor from the previous successful run. It returns additions, persistent flag changes, removals and a new opaque `nextCursor`.
+`MailClient::syncFolder()` compares one exact IMAP folder with the state encoded in the cursor from the previous successful run. It returns additions, persistent flag changes, removals and a new opaque `nextCursor`.
 
-The mail client does not decide where durable state lives. Applications persist the opaque cursor through `SyncCursorStore`. A store is addressed by the stable mail-client `accountId()` plus the exact folder name:
+The mail client keeps synchronization and persistence separate. `SyncCursorStore` is the persistence contract: `load()` returns the current cursor for one account/folder pair or `null` on first use, and `save()` stores the opaque cursor returned by `syncFolder()`.
 
 ```php
 interface SyncCursorStore
@@ -12,19 +12,18 @@ interface SyncCursorStore
 }
 ```
 
-`load()` returns `null` when that account/folder combination has never been synchronized. Passing that `null` cursor to `syncFolder()` starts an initial sync and reports all messages currently present in the folder across one or more batches. The returned cursor is opaque application state; applications must not parse or modify it.
+A `null` cursor starts the initial synchronization and reports all messages currently present in the folder across one or more batches. Do not parse or modify the cursor. Save `nextCursor` only after the returned batch was processed successfully; if processing fails, retain the previously stored cursor and retry.
 
-Persist `nextCursor` only after every observation in the returned batch has been processed successfully. If processing fails, retain the previous cursor and retry. When `hasMore` is true, continue immediately with the newly persisted cursor until the current difference set is drained.
+## SQLite store
 
-## Filesystem example
+[`SqliteSyncCursorStore`](../../src/SqliteSyncCursorStore.php) is the database-backed implementation used by the runnable [`sync-folder.php`](sync-folder.php) example. Pass any SQLite file to its constructor; the file may already contain state from other libraries. The store creates only its own table with `CREATE TABLE IF NOT EXISTS`.
 
-[`FileSyncCursorStore.php`](FileSyncCursorStore.php) is the smallest example implementation. It stores one file per account/folder key in a directory supplied to its constructor. The file name is a SHA-256 hash of `accountId` and folder, so folder names are not used as filesystem paths. This implementation is useful as a reference for writing a custom store; applications with transactional processing will usually prefer a database-backed implementation.
+```php
+$store = new SqliteSyncCursorStore('/var/lib/my-app/state.sqlite');
+$cursor = $store->load($client->accountId(), 'INBOX');
+```
 
-## SQLite example
-
-[`SqliteSyncCursorStore.php`](SqliteSyncCursorStore.php) accepts any SQLite database file. The file may already be used by other libraries or application components. On construction the store executes `CREATE TABLE IF NOT EXISTS` for its own table and leaves unrelated tables untouched.
-
-The table is named `phore_mailclient_sync_cursor`:
+The table is `phore_mailclient_sync_cursor`:
 
 | Column | Type | Meaning |
 |---|---|---|
@@ -33,18 +32,36 @@ The table is named `phore_mailclient_sync_cursor`:
 | `cursor` | `TEXT NOT NULL` | Opaque `nextCursor` returned by `syncFolder()` |
 | `updated_at` | `TEXT NOT NULL` | UTC timestamp of the last successful save |
 
-The primary key is `(account_id, folder)`, therefore one SQLite state file can hold independent cursors for all folders of all configured mail accounts while also containing tables belonging to other libraries.
+Its primary key is `(account_id, folder)`. One shared SQLite state file can therefore hold cursors for multiple accounts and folders alongside unrelated application tables.
 
-The runnable [`sync-folder.php`](sync-folder.php) example uses this SQLite store. Usage:
+## Filesystem store
 
-```text
-php sync-folder.php INBOX /var/lib/my-app/state.sqlite
+[`FileSyncCursorStore`](../../src/FileSyncCursorStore.php) stores one cursor file per account/folder pair in a directory supplied to its constructor. The filename is derived from a SHA-256 hash of account ID and folder, so folder names are not used as filesystem paths.
+
+```php
+$store = new FileSyncCursorStore('/var/lib/my-app/mail-cursors');
+$cursor = $store->load($client->accountId(), 'INBOX');
 ```
 
-The example loads the current cursor, processes each returned batch, saves `nextCursor`, and keeps calling `syncFolder()` while `hasMore` is true.
+Use this when simple filesystem persistence is sufficient. The synchronization flow is otherwise identical to the SQLite variant.
 
-## Custom store
+## Own store implementation
 
-Implement `SyncCursorStore` when the cursor should live somewhere else, for example in the same database transaction as your message cache, Redis, a key/value store or an application-specific state repository. The synchronization algorithm does not depend on the storage backend; only the two `load()` and `save()` operations are required.
+For another backend, implement the same two-method `SyncCursorStore` contract. The application decides where the state lives; the mail client only passes the opaque cursor through that contract.
 
-If multiple independent consumers synchronize the same account/folder, each consumer needs its own logical cursor store or namespace. Do not let independent workers overwrite the same cursor unless they intentionally share one synchronization stream.
+```php
+final class MySyncCursorStore implements SyncCursorStore
+{
+    public function load(string $accountId, string $folder): ?string
+    {
+        // Read the cursor from your application's state backend.
+    }
+
+    public function save(string $accountId, string $folder, string $cursor): void
+    {
+        // Persist the cursor in your application's state backend.
+    }
+}
+```
+
+Independent consumers that synchronize the same account/folder need independent cursor namespaces or stores. Workers that intentionally share one synchronization stream must coordinate writes so they do not overwrite each other's cursor.

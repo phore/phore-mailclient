@@ -60,9 +60,8 @@ $savedDraft = $mailClient->saveDraft($email);
 
 // saveDraft() returns an Email with the resolved From and a stable server ID;
 // it never sends. The original local $email remains unchanged, including its [] From.
-// The configured 'new' signature is applied once in the returned draft (see
-// create-message-defaults.php). Its HTML and inline images survive serialization.
-// $savedDraft->body()->html() exposes the composed HTML alternative;
+// The central Markdown signature from mailbox.yaml is applied once to the returned
+// draft. $savedDraft->body()->html() exposes the composed HTML alternative;
 // $savedDraft->body()->text() includes the plain signature fallback.
 // Use $email = $email->withSignature(false) BEFORE saving to omit the signature;
 // withSignature($signature) selects an explicit Signature instead of the default.

@@ -24,7 +24,8 @@ $reply = $mailClient->reply(
 // If the source has no valid Message-ID, omit thread headers; still quote its body.
 // The new answer stays ABOVE the automatically appended Markdown blockquote.
 // The configured reply introduction precedes that quote; signaturePosition places
-// our own signature above/below the quote. See create-message-defaults.php.
+// our own signature above/below the quote. The standard mailbox signature comes
+// from mailbox.yaml; create-message-defaults.php shows advanced type-specific setup.
 // Quote and signature are structured parts, never concatenated again on save.
 // Original attachments are not copied into replies. Source content is unchanged.
 //

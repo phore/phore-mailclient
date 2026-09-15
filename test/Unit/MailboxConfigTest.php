@@ -43,6 +43,32 @@ final class MailboxConfigTest extends TestCase
         self::assertSame('Junk', $config->junkFolder);
         self::assertSame('automatic', $config->mode);
         self::assertNull($config->from);
+        self::assertNull($config->signature);
+    }
+    public function testYamlLoadsSignatureWhenExtensionIsAvailable(): void
+    {
+        if (!function_exists('yaml_parse')) { self::markTestSkipped('ext-yaml is not installed.'); }
+        $path = $this->directory . '/mailbox.yaml';
+        file_put_contents($path, "host: imap.example.org\nusername: me@example.org\npasswordFromSecretName: {$this->secret}\nsignature: |\n  Viele Grüße\n\n  **Support Team**\n");
+        $config = MailboxConfig::fromFile($path);
+        self::assertNotNull($config->signature);
+        self::assertStringContainsString('Support Team', $config->signature->body->markdown() ?? '');
+    }
+    public function testYamlFailsClearlyWhenParserIsUnavailable(): void
+    {
+        if (function_exists('yaml_parse')) { self::markTestSkipped('ext-yaml is installed.'); }
+        $path = $this->directory . '/mailbox.yaml';
+        file_put_contents($path, "host: imap.example.org\n");
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('yaml_parse() is unavailable');
+        $this->expectExceptionMessage($path);
+        MailboxConfig::fromFile($path);
+    }
+    public function testSignatureIsBuiltFromMarkdown(): void
+    {
+        $config = MailboxConfig::fromArray($this->settings() + ['signature'=>"Viele Grüße\n\n**Support Team**"]);
+        self::assertNotNull($config->signature);
+        self::assertSame("Viele Grüße\n\n**Support Team**", $config->signature->body->markdown());
     }
     public function testLiteralPasswordLoadsWithoutSecretLookupAndIsRedacted(): void
     {
@@ -83,6 +109,7 @@ final class MailboxConfigTest extends TestCase
             'sentFolder'=>'Gesendet',
             'junkFolder'=>'Spam',
             'from'=>'Support <support@example.org>',
+            'signature'=>'Viele Grüße',
             'mode'=>'manual',
         ]);
         self::assertSame(1993, $config->port);
@@ -92,6 +119,7 @@ final class MailboxConfigTest extends TestCase
         self::assertSame('Gesendet', $config->sentFolder);
         self::assertSame('Spam', $config->junkFolder);
         self::assertSame('Support <support@example.org>', $config->from);
+        self::assertSame('Viele Grüße', $config->signature?->body->markdown());
         self::assertSame('manual', $config->mode);
     }
     #[DataProvider('invalidSettings')]
@@ -102,7 +130,7 @@ final class MailboxConfigTest extends TestCase
     }
     public static function invalidSettings(): iterable
     {
-        foreach ([['password'=>'do-not-store'], ['unknown'=>true], ['host'=>''], ['host'=>"host\n"], ['host'=>'ssl://host'], ['username'=>null], ['port'=>'993'], ['port'=>0], ['port'=>65536], ['port'=>true], ['draftsFolder'=>''], ['trashFolder'=>[]], ['incomingFolder'=>''], ['sentFolder'=>[]], ['junkFolder'=>"bad\n"], ['mode'=>'typo'], ['from'=>42], ['from'=>'invalid'], ['passwordFromSecretName'=>''], ['passwordFromSecretName'=>'../outside'], ['passwordFromSecretName'=>'/absolute'], ['passwordFromSecretName'=>'a/b'], ['passwordFromSecretName'=>"BAD\n"], ['passwordFromSecretName'=>'a\\b']] as $changes) { yield [$changes]; }
+        foreach ([['password'=>'do-not-store'], ['unknown'=>true], ['host'=>''], ['host'=>"host\n"], ['host'=>'ssl://host'], ['username'=>null], ['port'=>'993'], ['port'=>0], ['port'=>65536], ['port'=>true], ['draftsFolder'=>''], ['trashFolder'=>[]], ['incomingFolder'=>''], ['sentFolder'=>[]], ['junkFolder'=>"bad\n"], ['mode'=>'typo'], ['from'=>42], ['from'=>'invalid'], ['signature'=>''], ['signature'=>42], ['passwordFromSecretName'=>''], ['passwordFromSecretName'=>'../outside'], ['passwordFromSecretName'=>'/absolute'], ['passwordFromSecretName'=>'a/b'], ['passwordFromSecretName'=>"BAD\n"], ['passwordFromSecretName'=>'a\\b']] as $changes) { yield [$changes]; }
     }
     #[DataProvider('invalidJson')]
     public function testInvalidFilesAreRejected(string $json): void
@@ -118,8 +146,10 @@ final class MailboxConfigTest extends TestCase
     }
     public function testMissingConfigFileFailsClearly(): void
     {
+        $path = $this->directory . '/missing.json';
         $this->expectException(\RuntimeException::class);
-        MailboxConfig::fromFile($this->directory . '/missing.json');
+        $this->expectExceptionMessage($path);
+        MailboxConfig::fromFile($path);
     }
     public function testFileFallbackPreservesWhitespaceAndEnvironmentTakesPrecedence(): void
     {

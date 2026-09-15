@@ -4,17 +4,17 @@ declare(strict_types=1);
 namespace Phore\MailClient\Test\Unit;
 
 use PDO;
-use PHPUnit\Framework\TestCase;
+use Phore\MailClient\FileSyncCursorStore;
+use Phore\MailClient\SqliteSyncCursorStore;
 use Phore\MailClient\SyncCursorStore;
+use PHPUnit\Framework\TestCase;
 
 final class SyncCursorStoreTest extends TestCase
 {
     public function testFilesystemStoreLoadsAndUpdatesCursorPerMailbox(): void
     {
-        require_once dirname(__DIR__, 2) . '/examples/api/FileSyncCursorStore.php';
-
         $directory = sys_get_temp_dir() . '/phore-mailclient-cursor-' . bin2hex(random_bytes(6));
-        $store = new \FileSyncCursorStore($directory);
+        $store = new FileSyncCursorStore($directory);
 
         self::assertInstanceOf(SyncCursorStore::class, $store);
         self::assertNull($store->load('account-a', 'INBOX'));
@@ -39,8 +39,6 @@ final class SyncCursorStoreTest extends TestCase
             self::markTestSkipped('pdo_sqlite is not available.');
         }
 
-        require_once dirname(__DIR__, 2) . '/examples/api/SqliteSyncCursorStore.php';
-
         $file = tempnam(sys_get_temp_dir(), 'phore-mailclient-sqlite-');
         self::assertNotFalse($file);
 
@@ -48,7 +46,7 @@ final class SyncCursorStoreTest extends TestCase
         $pdo->exec('CREATE TABLE other_library_state (state TEXT NOT NULL)');
         $pdo = null;
 
-        $store = new \SqliteSyncCursorStore($file);
+        $store = new SqliteSyncCursorStore($file);
         self::assertNull($store->load('account-a', 'INBOX'));
         $store->save('account-a', 'INBOX', 'cursor-1');
         $store->save('account-a', 'Archive', 'cursor-archive');

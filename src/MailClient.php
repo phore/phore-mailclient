@@ -277,8 +277,6 @@ final class MailClient
             $matches = $find();
             if ($matches === []) {
                 $this->transport->select($this->draftsFolder,true);
-                $this->transport->append($this->draftsFolder,$mime);
-                $matches = $find();
             }
         } catch (\Throwable $error) {
             throw new RuntimeException(
@@ -286,6 +284,18 @@ final class MailClient
                 0,
                 $error
             );
+        }
+        if ($matches === []) {
+            $this->transport->append($this->draftsFolder,$mime);
+            try {
+                $matches = $find();
+            } catch (\Throwable $error) {
+                throw new RuntimeException(
+                    sprintf('Unable to access configured drafts folder "%s" while saving draft.', $this->draftsFolder),
+                    0,
+                    $error
+                );
+            }
         }
         if (count($matches) !== 1) { throw new RuntimeException('Draft identity is ambiguous or APPEND outcome is unknown; resynchronize.'); }
         $stored = $matches[0];

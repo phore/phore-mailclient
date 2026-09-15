@@ -1,6 +1,6 @@
 {
-    "description": "Mailbox configuration reference. Use field examples to build a flat config object; do not pass this reference tree to fromFile().",
-    "format": "JSON; fromArray() also accepts settings from an application parser.",
+    "description": "Mailbox configuration reference. Use field examples to build a flat YAML or JSON config object; do not pass this reference tree to fromFile().",
+    "format": "YAML (.yaml/.yml) is the recommended file format and is parsed with PHP's yaml_parse() function; JSON remains supported. fromArray() accepts an already parsed settings array.",
     "credentialRule": "Exactly one of password or passwordFromSecretName must be present and nonempty. Both, neither, and null credentials are rejected.",
     "unknownFields": "Rejected.",
     "fields": {
@@ -81,6 +81,16 @@
             "default": null,
             "description": "Default author address, optionally with a display name. Null leaves the identity unspecified; an explicit message identity takes precedence.",
             "example": "Support <support@example.org>"
+        },
+        "signature": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "required": false,
+            "default": null,
+            "description": "Nonempty Markdown signature applied by default to new messages, replies/reply-all and forwards. Explicit per-message signatures or message defaults can override or disable it.",
+            "example": "Viele Grüße\n\n**Support Team**"
         },
         "mode": {
             "type": "string",

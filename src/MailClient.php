@@ -23,6 +23,8 @@ final class MailClient
     private array $automaticActions = [];
     /** @var array<string,string> Application folder alias => exact IMAP folder name. */
     private array $managedFolders = [];
+    /** @var array<string,string> Automation status name => IMAP keyword. */
+    private array $automationFlags = [];
 
     /** @internal Inject a transport for deterministic tests. Use connect() in applications. */
     public function __construct(
@@ -37,6 +39,7 @@ final class MailClient
         private string $sentFolder = 'Sent',
         private string $junkFolder = 'Junk',
         array $managedFolders = [],
+        array $automationFlags = [],
     ) {
         self::validateMode($mode);
         foreach ([$draftsFolder, $trashFolder, $incomingFolder, $sentFolder, $junkFolder] as $folder) {
@@ -47,6 +50,7 @@ final class MailClient
         $this->from = is_string($from) ? EmailAddress::parse($from) : $from;
         $this->defaults = new MessageDefaults($messageDefaults);
         $this->managedFolders = self::validateManagedFolders($managedFolders);
+        $this->automationFlags = self::validateAutomationFlags($automationFlags);
         $this->provisionManagedFolders();
     }
 
@@ -64,6 +68,7 @@ final class MailClient
         string $sentFolder = 'Sent',
         string $junkFolder = 'Junk',
         array $managedFolders = [],
+        array $automationFlags = [],
     ): self {
         Headers::validate($host); Headers::validate($username);
         if ($host === '' || $username === '' || $port < 1 || $port > 65535 || str_contains($host, '://')) { throw new InvalidArgumentException('Invalid IMAP connection settings.'); }
@@ -82,6 +87,7 @@ final class MailClient
             $sentFolder,
             $junkFolder,
             $managedFolders,
+            $automationFlags,
         );
     }
 
@@ -110,6 +116,9 @@ final class MailClient
 
     /** @return array<string,string> Configured managed folder aliases and exact IMAP names. */
     public function managedFolders(): array { return $this->managedFolders; }
+
+    /** @return array<string,string> Configured automation status names and IMAP keywords. */
+    public function automationFlags(): array { return $this->automationFlags; }
 
     /** Changes only future operations. Global changes reset per-action overrides. */
     public function setAutomaticMode(bool $enabled, ?string $action = null): self
@@ -146,6 +155,17 @@ final class MailClient
             if (strcasecmp($folder, 'INBOX') === 0) { $folders[$alias] = 'INBOX'; }
         }
         return $folders;
+    }
+
+    /** @return array<string,string> */
+    private static function validateAutomationFlags(array $flags): array
+    {
+        if (array_is_list($flags) && $flags !== []) { throw new InvalidArgumentException('Automation flags must be a name-to-IMAP-keyword mapping.'); }
+        foreach ($flags as $name => $flag) {
+            if (!is_string($name) || $name === '') { throw new InvalidArgumentException('Invalid automation flag name.'); }
+            if (!is_string($flag) || !preg_match('/^[A-Za-z0-9$][A-Za-z0-9$_.-]{0,63}$/D', $flag)) { throw new InvalidArgumentException('Invalid automation IMAP keyword for: ' . (string)$name . '.'); }
+        }
+        return $flags;
     }
 
     private function provisionManagedFolders(): void
@@ -210,7 +230,7 @@ final class MailClient
         }
         $added = []; $changed = []; $removed = [];
         foreach (array_slice($events, 0, $limit) as [$kind, $uid]) {
-            $id = (new Reference($this->account, $folder, $validity, $uid))->encode();
+            $id = (new Reference($this->account, $folder, $validity,$uid))->encode();
             if ($kind === 'removed') { $removed[] = $id; unset($known[$uid]); }
             elseif ($kind === 'flags') {
                 $changed[] = new FlagChange($id, $known[$uid], $current[$uid]);
@@ -225,7 +245,7 @@ final class MailClient
         if ((int)$finalStatus['uidvalidity'] !== $validity) { throw new SyncResetRequired($folder); }
         return new FolderChanges(
             folder: $folder, added: $added, flagsChanged: $changed, removed: $removed,
-            nextCursor: (new SyncCursor($this->account, $folder, $validity, $known))->encode(),
+            nextCursor: (new SyncCursor($this->account,$folder,$validity,$known))->encode(),
             hasMore: count($events) > $limit, isInitialSync: $previous === null,
         );
     }

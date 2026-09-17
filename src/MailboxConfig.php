@@ -24,6 +24,7 @@ final readonly class MailboxConfig
         public string $sentFolder,
         public string $junkFolder,
         public array $managedFolders,
+        public array $automationFlags,
         public ?string $from,
         public ?Signature $signature,
         public string $mode,
@@ -59,7 +60,7 @@ final readonly class MailboxConfig
     /** Accept the same settings from an application's own config parser. */
     public static function fromArray(#[\SensitiveParameter] array $data): self
     {
-        if (array_diff(array_keys($data), ['host','username','password','passwordFromSecretName','port','draftsFolder','trashFolder','incomingFolder','sentFolder','junkFolder','managedFolders','from','signature','mode']) !== []) {
+        if (array_diff(array_keys($data), ['host','username','password','passwordFromSecretName','port','draftsFolder','trashFolder','incomingFolder','sentFolder','junkFolder','managedFolders','automationFlags','from','signature','mode']) !== []) {
             throw new InvalidArgumentException('Unknown mailbox setting.');
         }
         foreach (['host','username'] as $key) {
@@ -80,6 +81,7 @@ final readonly class MailboxConfig
             'sentFolder'=>'Sent',
             'junkFolder'=>'Junk',
             'managedFolders'=>[],
+            'automationFlags'=>[],
             'from'=>null,
             'signature'=>null,
             'mode'=>MailClient::MODE_AUTOMATIC,
@@ -100,6 +102,23 @@ final readonly class MailboxConfig
             }
             Headers::validate($folder);
             if (strcasecmp($folder, 'INBOX') === 0) { $data['managedFolders'][$alias] = 'INBOX'; }
+        }
+        if (!is_array($data['automationFlags']) || ($data['automationFlags'] !== [] && array_is_list($data['automationFlags']))) {
+            throw new InvalidArgumentException('Mailbox automationFlags must be a name-to-IMAP-keyword mapping.');
+        }
+        $unknownAutomationFlags = array_diff(array_keys($data['automationFlags']), ['processed','error','actionRequired']);
+        if ($unknownAutomationFlags !== []) {
+            throw new InvalidArgumentException('Unknown mailbox automation flag: ' . (string)reset($unknownAutomationFlags) . '.');
+        }
+        $data['automationFlags'] = array_replace([
+            'processed'=>'lack_processed',
+            'error'=>'lack_error',
+            'actionRequired'=>'lack_action_required',
+        ], $data['automationFlags']);
+        foreach ($data['automationFlags'] as $name => $flag) {
+            if (!is_string($flag) || !preg_match('/^[A-Za-z0-9$][A-Za-z0-9$_.-]{0,63}$/D', $flag)) {
+                throw new InvalidArgumentException('Invalid IMAP keyword for automation flag: ' . $name . '.');
+            }
         }
         if (str_contains($data['host'], '://') || !is_int($data['port']) || $data['port'] < 1 || $data['port'] > 65535) {
             throw new InvalidArgumentException('Invalid IMAP host or port.');
@@ -125,6 +144,7 @@ final readonly class MailboxConfig
             $data['sentFolder'],
             $data['junkFolder'],
             $data['managedFolders'],
+            $data['automationFlags'],
             $data['from'],
             $data['signature'] === null ? null : Signature::fromMarkdown($data['signature']),
             $data['mode'],
@@ -155,6 +175,7 @@ final readonly class MailboxConfig
             sentFolder: $this->sentFolder,
             junkFolder: $this->junkFolder,
             managedFolders: $this->managedFolders,
+            automationFlags: $this->automationFlags,
         );
     }
 }

@@ -22,6 +22,8 @@ final class FolderSyncTest extends TestCase
                 if (!isset($this->messages[$folder])) { throw new \RuntimeException('Missing folder.'); }
                 $this->folder = $folder; return ['uidvalidity'=>$this->validity];
             }
+            public function folderExists(string $folder): bool { return isset($this->messages[$folder]); }
+            public function createFolder(string $folder): void { $this->messages[$folder] ??= []; }
             public function search(array $criteria): array { return array_keys($this->messages[$this->folder]); }
             public function syncFlags(array $uids): array {
                 if ($this->failSnapshot) { throw new \RuntimeException('Connection lost.'); }

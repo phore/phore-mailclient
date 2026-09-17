@@ -44,6 +44,17 @@ final class ImapTransport implements SyncTransport
         }
         return $status;
     }
+    public function folderExists(string $folder): bool
+    {
+        Headers::validate($folder);
+        $wire = mb_convert_encoding($folder, 'UTF7-IMAP', 'UTF-8');
+        return array_key_exists($wire, $this->protocol->folders('', $wire)->validatedData());
+    }
+    public function createFolder(string $folder): void
+    {
+        Headers::validate($folder);
+        $this->protocol->createFolder(mb_convert_encoding($folder, 'UTF7-IMAP', 'UTF-8'))->validate();
+    }
     public function search(array $criteria): array
     {
         $tokens = [];

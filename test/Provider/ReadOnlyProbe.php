@@ -19,6 +19,8 @@ final class ReadOnlyProbe
                 if ($write) { throw new RuntimeException('Provider probe attempted write selection.'); }
                 return $this->inner->select($folder);
             }
+            public function folderExists(string $folder): bool { return $this->inner->folderExists($folder); }
+            public function createFolder(string $folder): void { throw new RuntimeException('Provider probe attempted CREATE.'); }
             public function search(array $criteria): array { return $this->inner->search($criteria); }
             public function metadata(int $uid): array { return $this->inner->metadata($uid); }
             public function part(int $uid, string $section, int $maxBytes): string { return $this->inner->part($uid,$section,$maxBytes); }

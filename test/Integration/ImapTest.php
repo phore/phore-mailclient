@@ -97,6 +97,8 @@ final class ImapTest extends TestCase
             public int $appends = 0;
             public function __construct(private Transport $inner) {}
             public function select(string $folder,bool $write=false): array { return $this->inner->select($folder,$write); }
+            public function folderExists(string $folder): bool { return $this->inner->folderExists($folder); }
+            public function createFolder(string $folder): void { $this->inner->createFolder($folder); }
             public function search(array $criteria): array { return $this->inner->search($criteria); }
             public function metadata(int $uid): array { return $this->inner->metadata($uid); }
             public function part(int $uid,string $section,int $maxBytes): string { return $this->inner->part($uid,$section,$maxBytes); }

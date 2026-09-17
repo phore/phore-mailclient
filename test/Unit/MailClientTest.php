@@ -113,6 +113,37 @@ final class MailClientTest extends TestCase
             catch (\InvalidArgumentException) { self::assertTrue(true); }
         }
     }
+    public function testMoveReportsMissingTargetFolderWithMessageContext(): void
+    {
+        $transport = $this->createMock(Transport::class);
+        $transport->expects(self::once())->method('folderExists')->with('Archive')->willReturn(false);
+        $transport->expects(self::never())->method('createFolder');
+        $transport->expects(self::never())->method('move');
+        $client = new MailClient($transport,'account');
+        $email = (new Email(from:'sender@example.org',subject:'Important'))->onServer((new Reference('account','INBOX',7,12))->encode(),[]);
+
+        try { $client->moveTo($email,'Archive'); self::fail('Missing target folder was accepted.'); }
+        catch (\RuntimeException $error) {
+            self::assertStringStartsWith('Cannot move email because target folder does not exist: source-folder="INBOX", target-folder="Archive"', $error->getMessage());
+            self::assertStringContainsString('from="sender@example.org"', $error->getMessage());
+            self::assertStringContainsString('subject="Important"', $error->getMessage());
+        }
+    }
+    public function testMoveCanCreateMissingTargetFolder(): void
+    {
+        $cause = new \RuntimeException('CREATE denied');
+        $transport = $this->createMock(Transport::class);
+        $transport->expects(self::once())->method('folderExists')->with('Archive')->willReturn(false);
+        $transport->expects(self::once())->method('createFolder')->with('Archive')->willThrowException($cause);
+        $client = new MailClient($transport,'account');
+        $email = (new Email(from:'sender@example.org',subject:'Important'))->onServer((new Reference('account','INBOX',7,12))->encode(),[]);
+
+        try { $client->moveTo($email,'Archive',createFolder:true); self::fail('CREATE failure was not propagated.'); }
+        catch (\RuntimeException $error) {
+            self::assertStringStartsWith('Unable to create target folder before moving email:', $error->getMessage());
+            self::assertSame($cause,$error->getPrevious());
+        }
+    }
     public function testProviderProbeReportsSkippedMessageChecksOnEmptyInbox(): void
     {
         require_once dirname(__DIR__) . '/Provider/ReadOnlyProbe.php';

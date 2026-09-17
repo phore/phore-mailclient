@@ -140,7 +140,11 @@ connection identity, `fromAddress()` returns the configured sender, and
 `folder(MailboxFolder::Inbox|Sent|Drafts|Trash|Junk)` resolves configured standard
 folders. `peek($id)` reads a message without automatic flag changes. `moveTo($email,
 $folder)` performs a verified same-account IMAP move into an existing exact folder.
-These APIs keep persistence and consumer cursors outside the mail client.
+Pass `createFolder: true` to create a missing target folder before moving; the default
+is `false`. Missing-folder, folder-creation and MOVE errors identify the operation,
+source and target folders, Message-ID, sender, date and subject while retaining the
+original exception as the previous exception. These APIs keep persistence and consumer
+cursors outside the mail client.
 
 ## Synchronize changes in any folder
 

@@ -6,6 +6,8 @@ namespace Phore\MailClient\Internal;
 interface Transport
 {
     public function select(string $folder, bool $write = false): array;
+    public function folderExists(string $folder): bool;
+    public function createFolder(string $folder): void;
     public function search(array $criteria): array;
     public function metadata(int $uid): array;
     public function part(int $uid, string $section, int $maxBytes): string;

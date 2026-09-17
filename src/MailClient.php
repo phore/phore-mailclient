@@ -338,17 +338,45 @@ final class MailClient
         return $this->read($email->id());
     }
 
-    public function moveTo(Email $email, string $folder): Email
+    public function moveTo(Email $email, string $folder, bool $createFolder = false): Email
     {
         Headers::validate($folder);
         if ($folder === '') { throw new InvalidArgumentException('Target folder must be nonempty.'); }
         if (strcasecmp($folder, 'INBOX') === 0) { $folder = 'INBOX'; }
         $ref = Reference::decode($email->id() ?? '',$this->account);
-        $this->transport->select($folder);
-        $this->selectReference($ref,true); $this->transport->metadata($ref->uid);
-        if ($ref->folder === $folder) { return $this->read($email->id()); }
-        [$validity,$uid] = $this->transport->move($ref->uid,$folder);
-        return $this->read((new Reference($this->account,$folder,$validity,$uid))->encode());
+        $senders = array_map(static fn(EmailAddress $address): string => $address->getAddress(), $email->from());
+        $context = sprintf(
+            'source-folder="%s", target-folder="%s", message-id="%s", from="%s", date="%s", subject="%s"',
+            $ref->folder,
+            $folder,
+            $email->messageId() ?? 'unknown',
+            $senders === [] ? 'unknown' : implode(', ', $senders),
+            $email->date()?->format(DATE_ATOM) ?? 'unknown',
+            $email->subject(),
+        );
+        try {
+            $targetExists = $this->transport->folderExists($folder);
+        } catch (\Throwable $error) {
+            throw new RuntimeException('Unable to check target folder before moving email: ' . $context . '. Cause: ' . $error->getMessage(), previous: $error);
+        }
+        if (!$targetExists && !$createFolder) {
+            throw new RuntimeException('Cannot move email because target folder does not exist: ' . $context . '.');
+        }
+        if (!$targetExists) {
+            try { $this->transport->createFolder($folder); }
+            catch (\Throwable $error) {
+                throw new RuntimeException('Unable to create target folder before moving email: ' . $context . '. Cause: ' . $error->getMessage(), previous: $error);
+            }
+        }
+        try {
+            $this->transport->select($folder);
+            $this->selectReference($ref,true); $this->transport->metadata($ref->uid);
+            if ($ref->folder === $folder) { return $this->read($email->id()); }
+            [$validity,$uid] = $this->transport->move($ref->uid,$folder);
+            return $this->read((new Reference($this->account,$folder,$validity,$uid))->encode());
+        } catch (\Throwable $error) {
+            throw new RuntimeException('Failed to move email via IMAP: ' . $context . '. Cause: ' . $error->getMessage(), previous: $error);
+        }
     }
 
     public function moveToTrash(Email $email): Email

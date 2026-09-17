@@ -4,6 +4,10 @@ passwordFromSecretName: SUPPORT_MAIL_PASSWORD
 from: Support Team <support@example.org>
 sentFolder: Sent
 junkFolder: Junk
+managedFolders:
+  customers: Customers
+  invoices: Invoices
+  errors: Automation/Errors
 mode: manual
 signature: |
   Viele Grüße

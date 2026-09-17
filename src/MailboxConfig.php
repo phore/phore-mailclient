@@ -88,7 +88,7 @@ final readonly class MailboxConfig
             if (!is_string($data[$key]) || $data[$key] === '') { throw new InvalidArgumentException('Invalid mailbox setting: ' . $key . '.'); }
             Headers::validate($data[$key]);
         }
-        if (!is_array($data['managedFolders']) || array_is_list($data['managedFolders'])) {
+        if (!is_array($data['managedFolders']) || ($data['managedFolders'] !== [] && array_is_list($data['managedFolders']))) {
             throw new InvalidArgumentException('Mailbox managedFolders must be an alias-to-folder mapping.');
         }
         foreach ($data['managedFolders'] as $alias => $folder) {

@@ -11,6 +11,18 @@ final class ImapTest extends TestCase
     { if (getenv('PHORE_TEST_IMAP') !== '1') { self::markTestSkipped('Disposable Dovecot is not enabled.'); } }
     private function client(string $mode = 'manual', array $defaults = []): MailClient
     { return MailClient::connect('localhost','test','test-secret',1993,from:'me@example.org',messageDefaults:$defaults,mode:$mode); }
+    public function testCreateFolderCreatesMissingParents(): void
+    {
+        $transport = new ImapTransport('localhost','test','test-secret',1993);
+        $folder = 'Managed-' . bin2hex(random_bytes(4)) . '/Nested/Target';
+
+        self::assertFalse($transport->folderExists($folder));
+        $transport->createFolder($folder);
+
+        self::assertTrue($transport->folderExists(explode('/', $folder, 2)[0]));
+        self::assertTrue($transport->folderExists(substr($folder, 0, strrpos($folder, '/'))));
+        self::assertTrue($transport->folderExists($folder));
+    }
     public function testMimeDraftRoundTripRetryAndConflict(): void
     {
         $client = $this->client(defaults:['signatures'=>['new'=>Signature::fromHtml('<table><tr><td><b>Signature</b></td></tr></table>')]]);

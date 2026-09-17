@@ -53,7 +53,31 @@ final class ImapTransport implements SyncTransport
     public function createFolder(string $folder): void
     {
         Headers::validate($folder);
-        $this->protocol->createFolder(mb_convert_encoding($folder, 'UTF7-IMAP', 'UTF-8'))->validate();
+        $wire = mb_convert_encoding($folder, 'UTF7-IMAP', 'UTF-8');
+        $folders = $this->protocol->folders('', '*')->validatedData();
+        $delimiter = null;
+        foreach ($folders as $metadata) {
+            if (isset($metadata['delimiter']) && is_string($metadata['delimiter']) && $metadata['delimiter'] !== '') {
+                $delimiter = $metadata['delimiter'];
+                break;
+            }
+        }
+        if ($delimiter === null || !str_contains($wire, $delimiter)) {
+            $this->protocol->createFolder($wire)->validate();
+            return;
+        }
+
+        $current = '';
+        foreach (explode($delimiter, $wire) as $segment) {
+            $current = $current === '' ? $segment : $current . $delimiter . $segment;
+            if (array_key_exists($current, $folders)) { continue; }
+            try { $this->protocol->createFolder($current)->validate(); }
+            catch (\Throwable $error) {
+                $displayName = mb_convert_encoding($current, 'UTF-8', 'UTF7-IMAP');
+                throw new RuntimeException(sprintf('Unable to create IMAP folder "%s" while provisioning "%s".', $displayName, $folder), 0, $error);
+            }
+            $folders[$current] = ['delimiter' => $delimiter, 'flags' => []];
+        }
     }
     public function search(array $criteria): array
     {

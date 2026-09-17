@@ -43,6 +43,29 @@ final class MailClientTest extends TestCase
         self::assertSame('Papierkorb', $client->folder(MailboxFolder::Trash));
         self::assertSame('Spam', $client->folder(MailboxFolder::Junk));
     }
+    public function testManagedFoldersAreProvisionedAndResolvedByAlias(): void
+    {
+        $transport = $this->createMock(Transport::class);
+        $transport->expects(self::exactly(2))->method('folderExists')->willReturnMap([
+            ['Customers', true],
+            ['Automation/Errors', false],
+        ]);
+        $transport->expects(self::once())->method('createFolder')->with('Automation/Errors');
+        $client = new MailClient($transport,'account',managedFolders:[
+            'customers'=>'Customers',
+            'errors'=>'Automation/Errors',
+        ]);
+        self::assertSame('Customers',$client->managedFolder('customers'));
+        self::assertSame('Automation/Errors',$client->managedFolder('errors'));
+        self::assertSame(['customers'=>'Customers','errors'=>'Automation/Errors'],$client->managedFolders());
+    }
+    public function testUnknownManagedFolderAliasFailsClearly(): void
+    {
+        $client = new MailClient($this->createStub(Transport::class),'account');
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Unknown managed folder alias "costumers". Define it in mailbox config "managedFolders".');
+        $client->managedFolder('costumers');
+    }
     public function testForeignReferencesFailBeforeIo(): void
     {
         $transport = $this->createMock(Transport::class); $transport->expects(self::never())->method('select');

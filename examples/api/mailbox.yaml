@@ -8,6 +8,10 @@ managedFolders:
   customers: Customers
   invoices: Invoices
   errors: Automation/Errors
+automationFlags:
+  processed: lack_processed
+  error: lack_error
+  actionRequired: lack_action_required
 mode: manual
 signature: |
   Viele Grüße

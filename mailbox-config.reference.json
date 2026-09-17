@@ -72,6 +72,17 @@
             "description": "Exact nonempty junk or spam folder name.",
             "example": "Junk"
         },
+        "managedFolders": {
+            "type": "object<string,string>",
+            "required": false,
+            "default": {},
+            "description": "Application-owned folder aliases mapped to exact nonempty IMAP folder names. Aliases start with a letter and contain only letters, digits, underscore, dot or hyphen. Every configured target is checked when MailClient is created; missing target folders are created before the client is returned. Use MailClient::managedFolder(alias) to resolve an alias. Unknown aliases fail before a move.",
+            "example": {
+                "customers": "Customers",
+                "invoices": "Invoices",
+                "errors": "Automation/Errors"
+            }
+        },
         "from": {
             "type": [
                 "string",

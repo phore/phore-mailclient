@@ -83,6 +83,21 @@
                 "errors": "Automation/Errors"
             }
         },
+        "automationFlags": {
+            "type": "object<string,string>",
+            "required": false,
+            "default": {
+                "processed": "lack_processed",
+                "error": "lack_error",
+                "actionRequired": "lack_action_required"
+            },
+            "description": "IMAP keywords used by mailbox automation for terminal processing states. Supported keys are processed, error and actionRequired. Individual values may be overridden; omitted keys keep their defaults. Values must be valid custom IMAP keywords.",
+            "example": {
+                "processed": "my_processed",
+                "error": "my_error",
+                "actionRequired": "my_action_required"
+            }
+        },
         "from": {
             "type": [
                 "string",

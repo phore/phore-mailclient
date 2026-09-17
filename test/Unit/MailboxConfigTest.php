@@ -42,6 +42,11 @@ final class MailboxConfigTest extends TestCase
         self::assertSame('Sent', $config->sentFolder);
         self::assertSame('Junk', $config->junkFolder);
         self::assertSame([], $config->managedFolders);
+        self::assertSame([
+            'processed'=>'lack_processed',
+            'error'=>'lack_error',
+            'actionRequired'=>'lack_action_required',
+        ], $config->automationFlags);
         self::assertSame('automatic', $config->mode);
         self::assertNull($config->from);
         self::assertNull($config->signature);
@@ -110,6 +115,7 @@ final class MailboxConfigTest extends TestCase
             'sentFolder'=>'Gesendet',
             'junkFolder'=>'Spam',
             'managedFolders'=>['customers'=>'Customers','errors'=>'Automation/Errors'],
+            'automationFlags'=>['error'=>'project_error'],
             'from'=>'Support <support@example.org>',
             'signature'=>'Viele Grüße',
             'mode'=>'manual',
@@ -121,6 +127,11 @@ final class MailboxConfigTest extends TestCase
         self::assertSame('Gesendet', $config->sentFolder);
         self::assertSame('Spam', $config->junkFolder);
         self::assertSame(['customers'=>'Customers','errors'=>'Automation/Errors'], $config->managedFolders);
+        self::assertSame([
+            'processed'=>'lack_processed',
+            'error'=>'project_error',
+            'actionRequired'=>'lack_action_required',
+        ], $config->automationFlags);
         self::assertSame('Support <support@example.org>', $config->from);
         self::assertSame('Viele Grüße', $config->signature?->body->markdown());
         self::assertSame('manual', $config->mode);
@@ -133,7 +144,7 @@ final class MailboxConfigTest extends TestCase
     }
     public static function invalidSettings(): iterable
     {
-        foreach ([['password'=>'do-not-store'], ['unknown'=>true], ['host'=>''], ['host'=>"host\n"], ['host'=>'ssl://host'], ['username'=>null], ['port'=>'993'], ['port'=>0], ['port'=>65536], ['port'=>true], ['draftsFolder'=>''], ['trashFolder'=>[]], ['incomingFolder'=>''], ['sentFolder'=>[]], ['junkFolder'=>"bad\n"], ['managedFolders'=>['Customers']], ['managedFolders'=>[''=>'Customers']], ['managedFolders'=>['customers'=>'']], ['managedFolders'=>['customers'=>"bad\n"]], ['mode'=>'typo'], ['from'=>42], ['from'=>'invalid'], ['signature'=>''], ['signature'=>42], ['passwordFromSecretName'=>''], ['passwordFromSecretName'=>'../outside'], ['passwordFromSecretName'=>'/absolute'], ['passwordFromSecretName'=>'a/b'], ['passwordFromSecretName'=>"BAD\n"], ['passwordFromSecretName'=>'a\\b']] as $changes) { yield [$changes]; }
+        foreach ([['password'=>'do-not-store'], ['unknown'=>true], ['host'=>''], ['host'=>"host\n"], ['host'=>'ssl://host'], ['username'=>null], ['port'=>'993'], ['port'=>0], ['port'=>65536], ['port'=>true], ['draftsFolder'=>''], ['trashFolder'=>[]], ['incomingFolder'=>''], ['sentFolder'=>[]], ['junkFolder'=>"bad\n"], ['managedFolders'=>['Customers']], ['managedFolders'=>[''=>'Customers']], ['managedFolders'=>['customers'=>'']], ['managedFolders'=>['customers'=>"bad\n"]], ['automationFlags'=>['unknown'=>'x']], ['automationFlags'=>['error'=>'bad flag']], ['automationFlags'=>['error'=>null]], ['mode'=>'typo'], ['from'=>42], ['from'=>'invalid'], ['signature'=>''], ['signature'=>42], ['passwordFromSecretName'=>''], ['passwordFromSecretName'=>'../outside'], ['passwordFromSecretName'=>'/absolute'], ['passwordFromSecretName'=>'a/b'], ['passwordFromSecretName'=>"BAD\n"], ['passwordFromSecretName'=>'a\\b']] as $changes) { yield [$changes]; }
     }
     #[DataProvider('invalidJson')]
     public function testInvalidFilesAreRejected(string $json): void

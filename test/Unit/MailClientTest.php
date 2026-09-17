@@ -34,6 +34,11 @@ final class MailClientTest extends TestCase
             incomingFolder:'Eingang',
             sentFolder:'Gesendet',
             junkFolder:'Spam',
+            automationFlags:[
+                'processed'=>'project_processed',
+                'error'=>'project_error',
+                'actionRequired'=>'project_action_required',
+            ],
         );
         self::assertSame('account-1', $client->accountId());
         self::assertSame('support@example.org', $client->fromAddress()?->getAddress());
@@ -42,6 +47,11 @@ final class MailClientTest extends TestCase
         self::assertSame('Entwürfe', $client->folder(MailboxFolder::Drafts));
         self::assertSame('Papierkorb', $client->folder(MailboxFolder::Trash));
         self::assertSame('Spam', $client->folder(MailboxFolder::Junk));
+        self::assertSame([
+            'processed'=>'project_processed',
+            'error'=>'project_error',
+            'actionRequired'=>'project_action_required',
+        ], $client->automationFlags());
     }
     public function testManagedFoldersAreProvisionedAndResolvedByAlias(): void
     {

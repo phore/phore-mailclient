@@ -30,6 +30,10 @@ passwordFromSecretName: SUPPORT_MAIL_PASSWORD
 from: Support Team <support@example.org>
 sentFolder: Sent
 junkFolder: Junk
+automationFlags:
+  processed: lack_processed
+  error: lack_error
+  actionRequired: lack_action_required
 mode: manual
 signature: |
   Viele Grüße
@@ -81,6 +85,7 @@ This does not encrypt the original config file: it contains the supplied plainte
 | `port` | Integer, 1–65535; defaults to `993` |
 | `draftsFolder` / `trashFolder` | Exact nonempty names; default `Drafts` / `Trash` |
 | `incomingFolder` / `sentFolder` / `junkFolder` | Exact nonempty names; default `INBOX` / `Sent` / `Junk` |
+| `automationFlags` | Optional map for `processed`, `error`, `actionRequired`; defaults to `lack_processed`, `lack_error`, `lack_action_required` and supports partial overrides |
 | `from` | Optional address string, default `null` |
 | `signature` | Optional nonempty Markdown string, default `null`; used for new/reply/forward |
 | `mode` | `automatic` (default, same as `MailClient::connect`) or `manual` |
@@ -89,6 +94,12 @@ Exactly one of `password` or `passwordFromSecretName` must be present. Both, nei
 null/empty credentials, unknown fields, invalid types and path-like secret names
 are rejected. The previous draft field `passwordSecret` is no longer accepted. Config files cannot disable TLS or certificate verification.
 The example explicitly uses `manual` to avoid automatic flag changes.
+
+`automationFlags` is carried into the connected client and exposed through
+`$client->automationFlags()`. The mail client only validates and exposes these custom
+IMAP keyword names; the automation consumer decides when to set or clear them and what
+they mean. Omitted keys keep the defaults, so overriding only `error` leaves the
+`processed` and `actionRequired` names unchanged.
 
 For other secret mount locations, use
 `$config->connect(secretsDirectory: '/run/secrets')`. This is an application option,
@@ -136,7 +147,8 @@ draft ID; retry the same Email to finish without duplicating the draft.
 
 Consumers that build their own durable processing layer can use the configured
 mailbox without accessing internal transport classes. `accountId()` returns the stable
-connection identity, `fromAddress()` returns the configured sender, and
+connection identity, `fromAddress()` returns the configured sender,
+`automationFlags()` returns configured automation-status IMAP keywords, and
 `folder(MailboxFolder::Inbox|Sent|Drafts|Trash|Junk)` resolves configured standard
 folders. `peek($id)` reads a message without automatic flag changes. `moveTo($email,
 $folder)` performs a verified same-account IMAP move into an existing exact folder.

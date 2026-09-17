@@ -23,6 +23,7 @@ final readonly class MailboxConfig
         public string $incomingFolder,
         public string $sentFolder,
         public string $junkFolder,
+        public array $managedFolders,
         public ?string $from,
         public ?Signature $signature,
         public string $mode,
@@ -58,7 +59,7 @@ final readonly class MailboxConfig
     /** Accept the same settings from an application's own config parser. */
     public static function fromArray(#[\SensitiveParameter] array $data): self
     {
-        if (array_diff(array_keys($data), ['host','username','password','passwordFromSecretName','port','draftsFolder','trashFolder','incomingFolder','sentFolder','junkFolder','from','signature','mode']) !== []) {
+        if (array_diff(array_keys($data), ['host','username','password','passwordFromSecretName','port','draftsFolder','trashFolder','incomingFolder','sentFolder','junkFolder','managedFolders','from','signature','mode']) !== []) {
             throw new InvalidArgumentException('Unknown mailbox setting.');
         }
         foreach (['host','username'] as $key) {
@@ -78,6 +79,7 @@ final readonly class MailboxConfig
             'incomingFolder'=>'INBOX',
             'sentFolder'=>'Sent',
             'junkFolder'=>'Junk',
+            'managedFolders'=>[],
             'from'=>null,
             'signature'=>null,
             'mode'=>MailClient::MODE_AUTOMATIC,
@@ -85,6 +87,19 @@ final readonly class MailboxConfig
         foreach (['host','username','draftsFolder','trashFolder','incomingFolder','sentFolder','junkFolder','mode'] as $key) {
             if (!is_string($data[$key]) || $data[$key] === '') { throw new InvalidArgumentException('Invalid mailbox setting: ' . $key . '.'); }
             Headers::validate($data[$key]);
+        }
+        if (!is_array($data['managedFolders']) || array_is_list($data['managedFolders'])) {
+            throw new InvalidArgumentException('Mailbox managedFolders must be an alias-to-folder mapping.');
+        }
+        foreach ($data['managedFolders'] as $alias => $folder) {
+            if (!is_string($alias) || !preg_match('/^[A-Za-z][A-Za-z0-9_.-]{0,63}$/D', $alias)) {
+                throw new InvalidArgumentException('Invalid managed folder alias: ' . (string)$alias . '.');
+            }
+            if (!is_string($folder) || $folder === '') {
+                throw new InvalidArgumentException('Invalid managed folder name for alias: ' . $alias . '.');
+            }
+            Headers::validate($folder);
+            if (strcasecmp($folder, 'INBOX') === 0) { $data['managedFolders'][$alias] = 'INBOX'; }
         }
         if (str_contains($data['host'], '://') || !is_int($data['port']) || $data['port'] < 1 || $data['port'] > 65535) {
             throw new InvalidArgumentException('Invalid IMAP host or port.');
@@ -109,6 +124,7 @@ final readonly class MailboxConfig
             $data['incomingFolder'],
             $data['sentFolder'],
             $data['junkFolder'],
+            $data['managedFolders'],
             $data['from'],
             $data['signature'] === null ? null : Signature::fromMarkdown($data['signature']),
             $data['mode'],
@@ -138,6 +154,7 @@ final readonly class MailboxConfig
             incomingFolder: $this->incomingFolder,
             sentFolder: $this->sentFolder,
             junkFolder: $this->junkFolder,
+            managedFolders: $this->managedFolders,
         );
     }
 }

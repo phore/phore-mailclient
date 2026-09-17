@@ -55,6 +55,19 @@ final class EmailTest extends TestCase
         self::assertNull($forward->inReplyTo()); self::assertSame([],$forward->references());
         self::assertStringNotContainsString('secret@example.org',$forward->body()->text());
     }
+    public function testReplyQuoteUsesPlainTextMarkersOnlyOutsideHtml(): void
+    {
+        $source = (new Email(from:'author@example.org'))->withMarkdown("Original\nsecond line");
+        $reply = $source->reply('me@example.org',markdown:'Answer');
+        self::assertStringContainsString("> Original\n> second line",$reply->body()->text());
+        self::assertStringContainsString('blockquote type="cite" class="gmail_quote"',$reply->body()->html());
+        self::assertStringContainsString('border-left:1px solid #ccc;padding-left:1ex',$reply->body()->html());
+        self::assertStringNotContainsString('&gt; Original',$reply->body()->html());
+
+        $nested = $reply->reply('author@example.org',markdown:'Follow-up');
+        self::assertStringContainsString('<blockquote type="cite" class="gmail_quote"',$nested->body()->html());
+        self::assertStringNotContainsString('&gt; Original',$nested->body()->html());
+    }
     public function testTemplatesAreLiteralAndSinglePass(): void
     {
         $source = new Email(from:new EmailAddress('a@example.org','{{subject}} **Evil** <script>'),subject:'SECRET');

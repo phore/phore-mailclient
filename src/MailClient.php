@@ -21,6 +21,8 @@ final class MailClient
     private MessageDefaults $defaults;
     private ?EmailAddress $from;
     private array $automaticActions = [];
+    /** @var array<string,string> Application folder alias => exact IMAP folder name. */
+    private array $managedFolders = [];
 
     /** @internal Inject a transport for deterministic tests. Use connect() in applications. */
     public function __construct(
@@ -34,6 +36,7 @@ final class MailClient
         private string $incomingFolder = 'INBOX',
         private string $sentFolder = 'Sent',
         private string $junkFolder = 'Junk',
+        array $managedFolders = [],
     ) {
         self::validateMode($mode);
         foreach ([$draftsFolder, $trashFolder, $incomingFolder, $sentFolder, $junkFolder] as $folder) {
@@ -43,6 +46,8 @@ final class MailClient
         $this->incomingFolder = strcasecmp($incomingFolder, 'INBOX') === 0 ? 'INBOX' : $incomingFolder;
         $this->from = is_string($from) ? EmailAddress::parse($from) : $from;
         $this->defaults = new MessageDefaults($messageDefaults);
+        $this->managedFolders = self::validateManagedFolders($managedFolders);
+        $this->provisionManagedFolders();
     }
 
     public static function connect(
@@ -58,6 +63,7 @@ final class MailClient
         string $incomingFolder = 'INBOX',
         string $sentFolder = 'Sent',
         string $junkFolder = 'Junk',
+        array $managedFolders = [],
     ): self {
         Headers::validate($host); Headers::validate($username);
         if ($host === '' || $username === '' || $port < 1 || $port > 65535 || str_contains($host, '://')) { throw new InvalidArgumentException('Invalid IMAP connection settings.'); }
@@ -75,6 +81,7 @@ final class MailClient
             $incomingFolder,
             $sentFolder,
             $junkFolder,
+            $managedFolders,
         );
     }
 
@@ -91,6 +98,18 @@ final class MailClient
             MailboxFolder::Junk => $this->junkFolder,
         };
     }
+
+    /** Resolve an application folder alias declared under mailbox config managedFolders. */
+    public function managedFolder(string $alias): string
+    {
+        if (!array_key_exists($alias, $this->managedFolders)) {
+            throw new InvalidArgumentException(sprintf('Unknown managed folder alias "%s". Define it in mailbox config "managedFolders".', $alias));
+        }
+        return $this->managedFolders[$alias];
+    }
+
+    /** @return array<string,string> Configured managed folder aliases and exact IMAP names. */
+    public function managedFolders(): array { return $this->managedFolders; }
 
     /** Changes only future operations. Global changes reset per-action overrides. */
     public function setAutomaticMode(bool $enabled, ?string $action = null): self
@@ -115,6 +134,30 @@ final class MailClient
 
     private static function validateMode(string $mode): void
     { if (!in_array($mode,[self::MODE_AUTOMATIC,self::MODE_MANUAL],true)) { throw new InvalidArgumentException('Mode must be automatic or manual.'); } }
+
+    /** @return array<string,string> */
+    private static function validateManagedFolders(array $folders): array
+    {
+        if (array_is_list($folders) && $folders !== []) { throw new InvalidArgumentException('Managed folders must be an alias-to-folder mapping.'); }
+        foreach ($folders as $alias => $folder) {
+            if (!is_string($alias) || !preg_match('/^[A-Za-z][A-Za-z0-9_.-]{0,63}$/D', $alias)) { throw new InvalidArgumentException('Invalid managed folder alias: ' . (string)$alias . '.'); }
+            if (!is_string($folder) || $folder === '') { throw new InvalidArgumentException('Invalid managed folder name for alias: ' . $alias . '.'); }
+            Headers::validate($folder);
+            if (strcasecmp($folder, 'INBOX') === 0) { $folders[$alias] = 'INBOX'; }
+        }
+        return $folders;
+    }
+
+    private function provisionManagedFolders(): void
+    {
+        foreach ($this->managedFolders as $alias => $folder) {
+            try { $exists = $this->transport->folderExists($folder); }
+            catch (\Throwable $error) { throw new RuntimeException(sprintf('Unable to check managed folder "%s" for alias "%s".', $folder, $alias), 0, $error); }
+            if ($exists) { continue; }
+            try { $this->transport->createFolder($folder); }
+            catch (\Throwable $error) { throw new RuntimeException(sprintf('Unable to create managed folder "%s" for alias "%s".', $folder, $alias), 0, $error); }
+        }
+    }
 
     public function listNew(?string $after = null, int $limit = 50): EmailBatch
     {

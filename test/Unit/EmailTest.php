@@ -57,7 +57,7 @@ final class EmailTest extends TestCase
     }
     public function testReplyQuoteUsesPlainTextMarkersOnlyOutsideHtml(): void
     {
-        $source = (new Email(from:'author@example.org'))->withMarkdown("Original\nsecond line");
+        $source = (new Email(from:'author@example.org'))->withMarkdown('Original');
         $reply = $source->reply('me@example.org',markdown:'Answer');
         self::assertStringContainsString("> Original\n> second line",$reply->body()->text());
         self::assertStringContainsString('blockquote type="cite" class="gmail_quote"',$reply->body()->html());

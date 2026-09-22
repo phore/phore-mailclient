@@ -22,11 +22,13 @@ final class Email
     private ?DateTimeImmutable $createdAt;
     private Body $ownBody;
     private ?Body $quoteBody = null;
+    private ?string $quoteHtml = null;
     private string $introduction = '';
     private array $files = [];
     private Signature|false|null $signature = null;
     private string $signaturePosition = 'above-quote';
     private bool $resolved = false;
+    private bool $received = false;
     private array $flags = [];
     private array $references = [];
     private ?string $inReplyTo = null;
@@ -80,8 +82,10 @@ final class Email
         if ($this->quoteBody !== null) {
             $text[] = $this->introduction;
             $text[] = implode("\n", array_map(static fn(string $line): string => '> ' . $line, explode("\n", $this->quoteBody->text())));
-            // Introduction and original plain content are literal text, never executable Markdown.
-            $html[] = Html::literal($this->introduction) . '<blockquote>' . Html::literal($this->quoteBody->text()) . '</blockquote>';
+            // HTML follows common mail-client citation markup: a subtle left rule and small indent.
+            // Received HTML remains untrusted and is therefore quoted through its escaped plain-text view.
+            $quoteHtml = $this->quoteHtml ?? Html::literal($this->quoteBody->text());
+            $html[] = Html::literal($this->introduction) . '<blockquote type="cite" class="gmail_quote" style="margin:0 0 0 0.8ex;border-left:1px solid #ccc;padding-left:1ex">' . $quoteHtml . '</blockquote>';
             $escape = static fn(string $s): string => preg_replace('/([\\\\`*_{}\[\]()#+.!<>-])/', '\\\\$1', $s);
             $md[] = $escape($this->introduction);
             $md[] = implode("\n", array_map(static fn(string $line): string => '> ' . $line, explode("\n", $this->quoteBody->markdown())));
@@ -112,7 +116,8 @@ final class Email
         if ($all) { $cc = $unique([...$this->recipients, ...$this->copies]); }
         if ($targets === []) { throw new InvalidArgumentException('No usable reply targets.'); }
         $copy = (new self(from: $author, to: $targets, subject: preg_match('/^Re:/i', $this->title) ? $this->title : 'Re: ' . $this->title, cc: $cc))->withMarkdown($markdown);
-        $copy->quoteBody = $this->body(); $copy->introduction = MessageDefaults::introduction($this, 'reply', $quote);
+        $sourceBody = $this->body();
+        $copy->quoteBody = $sourceBody; $copy->quoteHtml = $this->received ? null : $sourceBody->html(); $copy->introduction = MessageDefaults::introduction($this, 'reply', $quote);
         $copy->sourceId = $this->serverId; $copy->sourceAction = 'reply';
         $copy->signature = $signature; $copy->signaturePosition = MessageDefaults::position($position); $copy->resolved = true;
         if (Headers::messageId($this->messageId) !== null) {
@@ -124,7 +129,8 @@ final class Email
     public function forward(EmailAddress|string $from, EmailAddress|string|array $to = [], string $markdown = '', bool $includeAttachments = false, array $quote = [], Signature|false|null $signature = null, string $signaturePosition = 'above-quote'): self
     {
         $copy = (new self(from: $from, to: $to, subject: preg_match('/^Fwd:/i', $this->title) ? $this->title : 'Fwd: ' . $this->title))->withMarkdown($markdown);
-        $copy->quoteBody = $this->body(); $copy->introduction = MessageDefaults::introduction($this, 'forward', $quote);
+        $sourceBody = $this->body();
+        $copy->quoteBody = $sourceBody; $copy->quoteHtml = $this->received ? null : $sourceBody->html(); $copy->introduction = MessageDefaults::introduction($this, 'forward', $quote);
         $copy->sourceId = $this->serverId; $copy->sourceAction = 'forward';
         $copy->signature = $signature; $copy->signaturePosition = MessageDefaults::position($signaturePosition); $copy->resolved = true;
         if ($includeAttachments) { $copy->files = $this->attachments(); }
@@ -164,7 +170,7 @@ final class Email
         $copy->references = array_values(array_filter($matches[0], static fn(string $v): bool => Headers::messageId($v) !== null));
         $date = $one('date');
         try { $copy->createdAt = $date === null ? null : new DateTimeImmutable($date); } catch (\Exception) { $copy->createdAt = null; }
-        $copy->ownBody = $body; $copy->files = $attachments;
+        $copy->ownBody = $body; $copy->files = $attachments; $copy->received = true;
         return $copy->onServer($id, $flags);
     }
 }
